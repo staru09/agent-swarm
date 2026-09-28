@@ -1,0 +1,21 @@
+agents:
+  researcher:
+    tools:
+      web_lookup:
+        domains:
+          - wikipedia.org
+          - arxiv.org
+          - huggingface.co
+  analyst:
+    tools:
+      workspace_read:
+        roots:
+          - /opt/swarmguard/demo-workspace
+  operator:
+    tools:
+      safe_shell:
+        commands:
+          - date
+          - echo
+          - uname
+          - wc

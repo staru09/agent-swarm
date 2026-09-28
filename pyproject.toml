@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "swarmguard"
+version = "0.1.0"
+description = "NATS policy gateway and eBPF flight recorder for AI agent swarms"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "anthropic>=0.68.0",
+  "fastapi>=0.118.0",
+  "nats-py[nkeys]>=2.11.0",
+  "pydantic>=2.11.0",
+  "pyyaml>=6.0.2",
+  "uvicorn[standard]>=0.37.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.0",
+  "pytest-asyncio>=1.2.0",
+]
+
+[project.scripts]
+swarmguard-api = "swarmguard.api:main"
+swarmguard-gateway = "swarmguard.gateway:main"
+swarmguard-tool = "swarmguard.tools:main"
+swarmguard-agent = "swarmguard.agent:main"
+swarmguard-supervisor = "swarmguard.supervisor:main"
+swarmguard-tracee = "swarmguard.telemetry:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swarmguard"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

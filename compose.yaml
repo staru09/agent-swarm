@@ -1,0 +1,30 @@
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "127.0.0.1:4222:4222"
+      - "127.0.0.1:8222:8222"
+    volumes:
+      - ./infra/nats/nats.conf:/etc/nats/nats.conf:ro
+      - nats-data:/data/jetstream
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+  timeline:
+    build: .
+    network_mode: host
+    environment:
+      NATS_URL: nats://127.0.0.1:4222
+      NATS_USER: timeline
+      NATS_PASSWORD: timeline-dev
+      API_PORT: "8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+
+volumes:
+  nats-data:
