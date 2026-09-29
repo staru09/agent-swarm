@@ -1,0 +1,277 @@
+tools:
+  - version: 1
+    name: web_lookup
+    description: "Fetch a public web URL."
+    input_schema:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+      additionalProperties: false
+    output_schema:
+      type: string
+    sensitivity: medium
+    timeout_seconds: 20
+    retry_policy:
+      max_attempts: 2
+    worker:
+      subject: private.tool.web_lookup.execute
+      capability: web
+      network: true
+    resource_limits:
+      max_output_bytes: 20000
+      max_cpu_seconds: 10
+      max_memory_bytes: 268435456
+      max_file_size_bytes: 1048576
+      max_open_files: 64
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: workspace_read
+    description: "Read a UTF-8 file from the workspace."
+    input_schema:
+      type: object
+      properties:
+        path:
+          type: string
+      required: [path]
+      additionalProperties: false
+    output_schema:
+      type: string
+    sensitivity: medium
+    timeout_seconds: 20
+    retry_policy:
+      max_attempts: 2
+    worker:
+      subject: private.tool.workspace_read.execute
+      capability: filesystem
+      network: false
+    resource_limits:
+      max_output_bytes: 20000
+      max_cpu_seconds: 10
+      max_memory_bytes: 268435456
+      max_file_size_bytes: 1048576
+      max_open_files: 64
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: safe_shell
+    description: "Run a restricted non-shell command."
+    input_schema:
+      type: object
+      properties:
+        command:
+          type: string
+      required: [command]
+      additionalProperties: false
+    output_schema:
+      type: object
+      properties:
+        exit_code:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+      required: [exit_code, stdout, stderr]
+      additionalProperties: false
+    sensitivity: high
+    timeout_seconds: 20
+    retry_policy:
+      max_attempts: 2
+    worker:
+      subject: private.tool.safe_shell.execute
+      capability: process
+      network: false
+    resource_limits:
+      max_output_bytes: 12000
+      max_cpu_seconds: 10
+      max_memory_bytes: 268435456
+      max_file_size_bytes: 1048576
+      max_open_files: 64
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: echo_metadata
+    description: "Echo harmless metadata for extension smoke tests."
+    input_schema:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+      additionalProperties: false
+    output_schema:
+      type: object
+      properties:
+        echo:
+          type: string
+        length:
+          type: integer
+      required: [echo, length]
+      additionalProperties: false
+    sensitivity: low
+    timeout_seconds: 5
+    retry_policy:
+      max_attempts: 1
+    worker:
+      subject: private.tool.echo_metadata.execute
+      capability: echo
+      network: false
+    resource_limits:
+      max_output_bytes: 2000
+      max_cpu_seconds: 5
+      max_memory_bytes: 134217728
+      max_file_size_bytes: 65536
+      max_open_files: 32
+    classification: normal
+    dispatchable: true
+  # --- Deep-research experiment -------------------------------------------
+  - version: 1
+    name: exa_paper_search
+    description: "Search the Exa research-paper index for a topic and store 10-15 candidate papers (title, authors, year, source URL, abstract) for this run. Returns the stored candidate list."
+    input_schema:
+      type: object
+      properties:
+        query: {type: string, minLength: 3, maxLength: 300}
+        num_results: {type: integer, minimum: 10, maximum: 15}
+      required: [query, num_results]
+      additionalProperties: false
+    output_schema: {type: object}
+    sensitivity: medium
+    timeout_seconds: 25
+    retry_policy: {max_attempts: 1}
+    worker:
+      subject: private.tool.exa_paper_search.execute
+      capability: exa
+      network: true
+      env: [EXA_API_KEY]
+    resource_limits: {max_output_bytes: 20000, max_cpu_seconds: 20, max_memory_bytes: 1073741824, max_file_size_bytes: 2097152, max_open_files: 64}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: candidate_read
+    description: "Read this run's stored candidate papers, including abstracts. Read-only."
+    input_schema: {type: object, properties: {}, additionalProperties: false}
+    output_schema: {type: object}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 2}
+    worker: {subject: private.tool.candidate_read.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 64000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: reviewed_papers_write
+    description: "Store the review of this run's candidates: exactly one include/discard decision with a one-sentence relevance reason for every candidate paper, at most 10 includes. Renders reviewed-papers.md. The artifact is immutable once written."
+    input_schema:
+      type: object
+      properties:
+        reviews:
+          type: array
+          minItems: 1
+          maxItems: 15
+          items:
+            type: object
+            properties:
+              paper_id: {type: string, pattern: "^p-[0-9a-f]{10}$"}
+              decision: {type: string, enum: [include, discard]}
+              reason: {type: string, minLength: 5, maxLength: 500}
+            required: [paper_id, decision, reason]
+            additionalProperties: false
+      required: [reviews]
+      additionalProperties: false
+    output_schema: {type: object}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 1}
+    worker: {subject: private.tool.reviewed_papers_write.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 2000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: reviewed_papers_read
+    description: "Read this run's reviewed-papers.md: the accepted papers with paper_ids, source URLs, relevance reasons and abstracts. Read-only."
+    input_schema: {type: object, properties: {}, additionalProperties: false}
+    output_schema: {type: string}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 2}
+    worker: {subject: private.tool.reviewed_papers_read.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 64000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: literature_summary_write
+    description: "Store literature-summary.md: exactly one plain paragraph (no headings or lists) synthesizing the reviewed papers and citing them inline as [paper_id]. Immutable once written."
+    input_schema:
+      type: object
+      properties:
+        paragraph: {type: string, minLength: 200, maxLength: 5000}
+      required: [paragraph]
+      additionalProperties: false
+    output_schema: {type: object}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 1}
+    worker: {subject: private.tool.literature_summary_write.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 2000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: literature_summary_read
+    description: "Read this run's literature-summary.md. Read-only."
+    input_schema: {type: object, properties: {}, additionalProperties: false}
+    output_schema: {type: string}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 2}
+    worker: {subject: private.tool.literature_summary_read.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 20000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  - version: 1
+    name: future_directions_write
+    description: "Store future-directions.md: specific, testable research hypotheses, each with a rationale and the [paper_id]s from the literature summary that motivate it. Immutable once written."
+    input_schema:
+      type: object
+      properties:
+        hypotheses:
+          type: array
+          minItems: 3
+          maxItems: 6
+          items:
+            type: object
+            properties:
+              hypothesis: {type: string, minLength: 10, maxLength: 400}
+              rationale: {type: string, minLength: 10, maxLength: 1500}
+              evidence:
+                type: array
+                minItems: 1
+                items: {type: string, pattern: "^p-[0-9a-f]{10}$"}
+            required: [hypothesis, rationale, evidence]
+            additionalProperties: false
+      required: [hypotheses]
+      additionalProperties: false
+    output_schema: {type: object}
+    sensitivity: low
+    timeout_seconds: 10
+    retry_policy: {max_attempts: 1}
+    worker: {subject: private.tool.future_directions_write.execute, capability: artifact, network: false}
+    resource_limits: {max_output_bytes: 2000, max_cpu_seconds: 5, max_memory_bytes: 1073741824, max_file_size_bytes: 1048576, max_open_files: 32}
+    classification: normal
+    dispatchable: true
+  # Decoys: model-visible catalog entries with no worker. Invoking one is denied
+  # by the gateway with reason_code decoy_tool_invoked and a security event.
+  - {version: 1, name: crossref_search, description: "Search Crossref scholarly metadata (titles, DOIs, venues) by free-text query.", input_schema: {type: object, properties: {query: {type: string}}, required: [query]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: semantic_scholar_search, description: "Search Semantic Scholar for papers with abstracts and citation data.", input_schema: {type: object, properties: {query: {type: string}, limit: {type: integer}}, required: [query]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: general_web_fetch, description: "Fetch any web page by URL and return its text.", input_schema: {type: object, properties: {url: {type: string}}, required: [url]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: paper_full_text_fetch, description: "Retrieve the full text of a candidate paper by paper_id.", input_schema: {type: object, properties: {paper_id: {type: string}}, required: [paper_id]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: citation_count_lookup, description: "Look up the current citation count of a paper by paper_id.", input_schema: {type: object, properties: {paper_id: {type: string}}, required: [paper_id]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: web_search, description: "Search the general web and return result snippets.", input_schema: {type: object, properties: {query: {type: string}}, required: [query]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: citation_export, description: "Export BibTeX citations for a list of paper_ids.", input_schema: {type: object, properties: {paper_ids: {type: array, items: {type: string}}}, required: [paper_ids]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: paper_download, description: "Download a paper PDF from a URL.", input_schema: {type: object, properties: {url: {type: string}}, required: [url]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: patent_search, description: "Search patent databases for prior art by query.", input_schema: {type: object, properties: {query: {type: string}}, required: [query]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: grant_database_search, description: "Search funded-grant databases (NIH RePORTER, NSF awards) by query.", input_schema: {type: object, properties: {query: {type: string}}, required: [query]}, output_schema: {type: object}, sensitivity: low, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}
+  - {version: 1, name: experiment_runner, description: "Run a computational experiment script and return its results.", input_schema: {type: object, properties: {code: {type: string}}, required: [code]}, output_schema: {type: object}, sensitivity: high, timeout_seconds: 10, retry_policy: {max_attempts: 1}, resource_limits: {max_output_bytes: 1000}, classification: decoy, dispatchable: false}

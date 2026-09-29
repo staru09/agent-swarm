@@ -19,3 +19,21 @@ agents:
           - echo
           - uname
           - wc
+  cartographer:
+    tools:
+      echo_metadata: {}
+  web-researcher:
+    tools:
+      exa_paper_search: {}
+  paper-reviewer:
+    tools:
+      candidate_read: {}
+      reviewed_papers_write: {}
+  summary-writer:
+    tools:
+      reviewed_papers_read: {}
+      literature_summary_write: {}
+  hypothesis-generator:
+    tools:
+      literature_summary_read: {}
+      future_directions_write: {}
