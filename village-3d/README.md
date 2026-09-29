@@ -111,33 +111,41 @@ The **ⓘ** button next to the counters opens this guide in the app.
 **Clan colours** are a validated colour-blind-checked 8-slot palette. Colour never works alone: every figure and
 column also carries its model label.
 
-## Deploy (this EC2 box, a subdomain, HTTPS)
+## Deploy (this EC2 box behind Cloudflare)
 
-Caddy (the Ubuntu package) serves the site from `/var/www/village-3d`. It gets and renews the HTTPS certificate on
-its own and puts a login in front of the site. The login stays because the dataset is gated under research terms;
-remove the `basicauth` block in `deploy/Caddyfile` only once AI Digest agrees to a public site.
+GitHub (`village-3d` branch) is the source of truth. The EC2 box pulls from it and serves the page and data with Caddy
+from `/var/www/village-3d`. A **Cloudflare Tunnel** carries traffic: `cloudflared` on the box connects out to
+Cloudflare, so the box needs no public ports, no Elastic IP and no A record. Cloudflare does HTTPS, and **Cloudflare
+Access** puts a login in front. Keep that login: the dataset is gated under research terms.
 
-**Once, in AWS and DNS:**
-1. Give the instance an **Elastic IP**. Without one, the public IP changes every time the instance stops, and the
-   DNS record breaks.
-2. In the security group, allow inbound **TCP 80 and 443** from anywhere. Port 80 is needed for the certificate
-   check and the redirect to HTTPS.
-3. Point an **A record** for the subdomain at that IP.
+**Once, in the Cloudflare dashboard:**
+1. The domain is an active zone (*Websites*).
+2. *Zero Trust → Networks → Tunnels → Create a tunnel* (Cloudflared, Debian 64-bit). Run the install command it shows
+   yourself in an SSH session on the box; it contains a secret token. Wait for the connector to show *Healthy*.
+3. On the tunnel, add a *Public Hostname*: subdomain (e.g. `village`) plus the domain, service **HTTP**,
+   `localhost:8080`.
+4. *Zero Trust → Access → Applications → Add → Self-hosted*: the same hostname, with a policy allowing your team's
+   emails, login by one-time PIN.
+5. Optional: a *Cache Rule* for that hostname, paths `/assets/*` and `/data/*`, set to *Eligible for cache* and
+   *Respect origin TTL*.
 
 **Once, on the box:**
 ```bash
-sudo deploy/deploy.sh setup village.example.com   # writes /etc/caddy/Caddyfile, starts Caddy, prints the login
+sudo deploy/deploy.sh tunnel       # Caddy on 127.0.0.1:8080 only, no login of its own (Access does it); starts at boot
 ```
-Set `VILLAGE_USER` / `VILLAGE_PASSWORD` to choose the login (default: `village` plus a random password). Rerun setup
-to change the domain or password.
 
 **Every release:**
 ```bash
-deploy/deploy.sh publish --build   # rebuild the data from the dataset, then copy the site to /var/www
-deploy/deploy.sh publish           # copy only (data already built)
+deploy/deploy.sh publish           # git pull from GitHub, then copy the site to /var/www
+deploy/deploy.sh publish --build   # same, but rebuild data/ from the dataset first
 ```
 Only `index.html`, the scripts, `assets/` and `data/` are published. The extractor, docs and this kit stay private.
-Logs: `journalctl -u caddy` and `/var/log/caddy/village-access.log`.
+Logs: `journalctl -u caddy`, `journalctl -u cloudflared`, `/var/log/caddy/village-access.log`.
+
+**Without Cloudflare:**
+- Run `sudo deploy/deploy.sh setup village.example.com`. Caddy then gets the certificate itself and asks for a
+  password (set `VILLAGE_USER` / `VILLAGE_PASSWORD`, or a random one is printed).
+- This needs an Elastic IP, inbound TCP 80/443 in the security group, and an A record.
 
 ## Files
 

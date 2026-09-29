@@ -4,7 +4,7 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
 
 **Status:**
 - 2 (calendar) and 4 (player tags and summaries) are **done**, plus the building guide.
-- 1 (deployment) is ready on the box and waits on AWS/DNS steps.
+- 1 (deployment) is ready on the box and waits on the Cloudflare dashboard steps (1.4).
 - 3 (livelier agents) is next.
 
 ## What the data allows
@@ -21,19 +21,23 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
 
 ## 1. Deployment
 
-- [ ] **1.1 Decide who can see it.** The dataset is gated under research terms. The site ships behind a login
-      (Caddy `basicauth`) until AI Digest agrees to a public site; dropping the login is one block in `deploy/Caddyfile`.
-- [x] **1.2 Hosting.** Caddy on this EC2 box serves static files from `/var/www/village-3d`. No API server.
-- [x] **1.3 Access control.** Login in the Caddy config; `deploy.sh setup` generates or accepts the password.
-- [x] **1.4 Build and publish.** `deploy/deploy.sh publish [--build]` copies only the page, scripts, models and data.
-      Cache headers are set: models for a year, data for an hour, page and scripts `no-cache`. Tested locally.
-- [ ] **1.5 You, in AWS and DNS:**
-      - Elastic IP: the public IP already changed once on reboot
-      - security group: inbound 80 and 443
-      - an A record for the subdomain
-      - send me the subdomain
-- [ ] **1.6 Go live.** `sudo deploy/deploy.sh setup <subdomain>`, then `deploy/deploy.sh publish`, then check the
-      certificate, the login and a few days in a real browser.
+- [x] **1.1 Who can see it.** It sits behind a login, Cloudflare Access with email one-time PIN, because the dataset
+      is gated. A public site needs AI Digest's OK first.
+- [x] **1.2 Hosting.** GitHub is the source of truth. This EC2 box pulls from it and Caddy serves static files on
+      127.0.0.1:8080. A Cloudflare Tunnel carries traffic, so there are no public ports and no Elastic IP. No API server.
+- [x] **1.3 Box ready.**
+      - `sudo deploy/deploy.sh tunnel` has run: Caddy is enabled at boot, localhost only.
+      - `deploy/deploy.sh publish [--build]` pulls from GitHub and copies only the page, scripts, models and data.
+      - Cache headers are set: models for a year, data for an hour, page and scripts `no-cache`.
+      - Verified locally.
+- [ ] **1.4 You, in the Cloudflare dashboard** (steps in README → Deploy):
+      - create the tunnel and run its install command on the box yourself (it holds a secret token)
+      - add the public hostname, pointing at `localhost:8080`
+      - add an Access application for that hostname
+      - send me the subdomain once the tunnel is Healthy
+- [ ] **1.5 Go live check.** Through the subdomain: the Access login works, a few days load, the models and data are
+      cached at the edge.
+- [ ] **1.6 Optional:** a GitHub Actions workflow that runs `deploy.sh publish` on the box on every push.
 - [ ] **1.7 Frontend production pass.** Pin three.js with SRI or vendor it (it's a pinned jsDelivr version today).
 - [ ] **1.8 CI.** On every PR, run `test_extract.py` and a headless smoke test: load a day, expect no console errors.
 - [ ] **1.9 Uptime check** for the subdomain.
