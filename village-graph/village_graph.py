@@ -13,6 +13,7 @@ All humans are merged into one "Human" node; the "automated" nudger bot is dropp
   village-graph agents | goals | ignored | replies [A] [--within 10] | examples A B
   village-graph web [--port 8765]     # same commands, drawn as an interactive graph in the browser
 Filters on every query: --since/--until (UTC, until exclusive) --room --kind --goal --limit
+Each result also lists the newest messages behind its edges (--samples N, 0 = off).
 Data: $VILLAGE_DATA (dir with the .jsonl.gz files), else the HF cache ($HF_HUB_CACHE or ~/.cache/huggingface/hub).
 """
 import argparse, contextlib, gzip, io, json, os, re, shlex, sqlite3, statistics, sys
@@ -134,6 +135,11 @@ def build(days):
     print(f'edges: {len(edges)}  ' + '  '.join(f'{k}={v}' for k, v in sorted(kinds.items())))
 
 
+# message text for tables: first 300 chars on one line
+SNIPPET = ("replace(substr(m.content,1,300), char(10), ' ') "
+           "|| CASE WHEN length(m.content) > 300 THEN '…' ELSE '' END")
+
+
 def where(con, a, t=''):
     """SQL filter from the shared flags; t is a column prefix such as 'e.' for joins."""
     sql, p = ['1=1'], []
@@ -191,6 +197,7 @@ def parser():
     f.add_argument('--since'); f.add_argument('--until'); f.add_argument('--room'); f.add_argument('--goal')
     f.add_argument('--kind', choices=['addressed', 'named'])
     f.add_argument('--limit', type=int, default=20)
+    f.add_argument('--samples', type=int, default=5, help='sample messages shown under each result (0 = off)')
     p = sub.add_parser('pair', parents=[f], help='how often A and B connect, both directions, over time')
     p.add_argument('a'); p.add_argument('b')
     p.add_argument('--by', choices=['day', 'month'], default='day')
@@ -276,8 +283,7 @@ def query(a):
         we, pe = where(con, a, 'e.')
         sql = f"FROM edges e JOIN messages m ON m.id = e.msg_id WHERE e.src=? AND e.dst=? AND {we}"
         tables.append((['time', 'kind', 'room', f'{xn} -> {yn}'], con.execute(
-            f"SELECT substr(e.ts,1,16), e.kind, e.room, replace(substr(m.content,1,300), char(10), ' ') "
-            f"|| CASE WHEN length(m.content) > 300 THEN '…' ELSE '' END {sql} ORDER BY e.ts DESC LIMIT ?",
+            f"SELECT substr(e.ts,1,16), e.kind, e.room, {SNIPPET} {sql} ORDER BY e.ts DESC LIMIT ?",
             (x, y, *pe, a.limit)).fetchall()))
         edges, focus = [(xn, yn, con.execute(f'SELECT count(*) {sql}', (x, y, *pe)).fetchone()[0])], [xn, yn]
 
@@ -321,6 +327,15 @@ def query(a):
             "FROM goals g ORDER BY start_time DESC LIMIT ?", (a.limit,)).fetchall()))
 
     edges = [e for e in edges if e[2]]
+    if a.samples and edges and a.cmd != 'examples':  # newest messages behind the edges drawn
+        ids = {n: i for i, n in names.items()}
+        we, pe = where(con, a, 'e.')
+        tables.append((['time', 'from', 'to', 'sample messages, newest first'], con.execute(
+            f"SELECT substr(e.ts,1,16), s.name, group_concat(d.name, ', '), {SNIPPET} FROM edges e "
+            f"JOIN messages m ON m.id = e.msg_id JOIN nodes s ON s.id = e.src JOIN nodes d ON d.id = e.dst "
+            f"WHERE (e.src, e.dst) IN (VALUES {','.join(['(?,?)'] * len(edges))}) AND {we} "
+            f"GROUP BY e.msg_id ORDER BY e.ts DESC LIMIT ?",
+            (*(ids[n] for e in edges for n in e[:2]), *pe, a.samples)).fetchall()))
     nodes = list(dict.fromkeys([*focus, *extra, *(n for e in edges for n in e[:2])]))
     return {'covers': covers, 'tables': tables, 'graph': {'nodes': nodes, 'edges': edges, 'focus': focus}}
 

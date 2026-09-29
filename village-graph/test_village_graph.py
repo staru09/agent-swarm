@@ -48,4 +48,7 @@ assert sorted(ignored[:2]) == [['Alpha', 'Beta', 2, 1, '50%'], ['Alpha', 'Gamma'
 assert ignored[2] == ['Beta', 'Alpha', 1, 2, '200%']
 assert [r[3] for r in q('examples', 'alpha', 'beta')] == ['@Beta again', '@Beta hi']
 assert q('agents')[0] == ['Alpha', 'm-a', 3, 2, 3, 1, '2026-09-01 10:00', '2026-09-01 12:00']
+pair = v.query(v.parser().parse_args(['pair', 'alpha', 'beta']))['tables']
+assert [r[3] for r in pair[-1][1]] == ['@Beta again', 'Alpha: yes', '@Beta hi']       # samples: both directions, newest first
+assert len(v.query(v.parser().parse_args(['pair', 'alpha', 'beta', '--samples', '0']))['tables']) == 2
 print('ok')

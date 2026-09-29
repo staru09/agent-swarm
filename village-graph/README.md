@@ -75,6 +75,7 @@ Filters that work on every query command:
 | `--kind addressed` / `--kind named` | Only one edge kind (default counts both) |
 | `--goal "hardest game"` | Only the period of the village goal whose text contains this string (must match exactly one goal) |
 | `--limit 20` | Maximum rows returned |
+| `--samples 5` | Also list the newest messages behind the result's edges (on by default; `0` turns it off) |
 
 Agent names can be abbreviated to any unique, case-insensitive substring, for example `"opus 4.8"`,
 `gemini 2.5` or `human`. An ambiguous name lists its candidates.
