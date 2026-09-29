@@ -1,3 +1,10 @@
+# Small single-host deployment. Gateway, tool workers and agents run on the host
+# (see scripts/research.sh); this file provides the durable infrastructure.
+x-swarmguard: &swarmguard
+  build: .
+  image: swarmguard:local
+  network_mode: host
+
 services:
   nats:
     image: nats:2.11-alpine
@@ -14,17 +21,96 @@ services:
       timeout: 2s
       retries: 20
 
+  stream-bootstrap:
+    <<: *swarmguard
+    command: ["swarmguard-stream-bootstrap"]
+    environment:
+      NATS_URL: nats://127.0.0.1:4222
+      NATS_USER: stream-bootstrap
+      NATS_PASSWORD: stream-bootstrap-dev
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: swarmguard
+      POSTGRES_USER: swarmguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swarmguard-dev}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "swarmguard", "-d", "swarmguard"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+  migrate:
+    image: postgres:17-alpine
+    # Migrations are idempotent; this runs them all on every `up`.
+    entrypoint: ["sh", "-c", "for f in /migrations/*.sql; do echo \"applying $$f\"; psql -v ON_ERROR_STOP=1 -q -f \"$$f\" || exit 1; done"]
+    environment:
+      PGHOST: postgres
+      PGDATABASE: swarmguard
+      PGUSER: swarmguard
+      PGPASSWORD: ${POSTGRES_PASSWORD:-swarmguard-dev}
+    volumes:
+      - ./migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  projector:
+    <<: *swarmguard
+    command: ["swarmguard-projector"]
+    restart: unless-stopped
+    environment:
+      NATS_URL: nats://127.0.0.1:4222
+      NATS_USER: projector
+      NATS_PASSWORD: projector-dev
+      DATABASE_URL: postgresql://swarmguard:${POSTGRES_PASSWORD:-swarmguard-dev}@127.0.0.1:5432/swarmguard
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      stream-bootstrap:
+        condition: service_completed_successfully
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    user: "0:0"  # writes the file exporter output into the named volume
+    ports:
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./infra/otel/collector.yaml:/etc/otelcol/config.yaml:ro
+      - otel-data:/data
+
   timeline:
-    build: .
-    network_mode: host
+    <<: *swarmguard
+    restart: unless-stopped
     environment:
       NATS_URL: nats://127.0.0.1:4222
       NATS_USER: timeline
       NATS_PASSWORD: timeline-dev
       API_PORT: "8000"
+      DATABASE_URL: postgresql://swarmguard:${POSTGRES_PASSWORD:-swarmguard-dev}@127.0.0.1:5432/swarmguard
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     depends_on:
       nats:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      stream-bootstrap:
+        condition: service_completed_successfully
 
 volumes:
   nats-data:
+  pg-data:
+  otel-data:

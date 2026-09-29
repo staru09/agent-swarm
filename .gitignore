@@ -9,3 +9,6 @@ frontend/dist/
 runtime/
 *.creds
 *.nk
+artifacts/
+backups/
+frontend/tsconfig.tsbuildinfo
