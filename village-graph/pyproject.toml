@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "village-graph"
+version = "0.1.0"
+description = "Who-talks-to-whom graph of the AI Village agent swarm, queried from a CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+village-graph = "village_graph:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["village_graph.py"]

@@ -9,3 +9,5 @@ frontend/dist/
 runtime/
 *.creds
 *.nk
+village-graph/village.db
+village-graph/village.tmp
