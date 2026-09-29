@@ -5,8 +5,11 @@ import {
   RunDetailView,
   connectLiveEvents,
   fetchPaged,
+  fetchRunEvents,
   mergeCatchUpEvents,
+  newestRunsFirst,
   summarizeToolLifecycle,
+  timelineLanes,
   type EventRecord,
   type Page,
   type RunDetail,
@@ -235,5 +238,60 @@ describe("RunDetailView", () => {
     expect(screen.getByText("policy v1 allowed")).toBeInTheDocument();
     expect(screen.getByText("trace-tool")).toBeInTheDocument();
     expect(screen.getByText("kernel-1")).toBeInTheDocument();
+  });
+});
+
+describe("timelineLanes", () => {
+  it("derives one lane per agent in first-activity order, with system for unattributed events", () => {
+    const lanes = timelineLanes([
+      event({ event_id: "c", agent_id: "paper-reviewer", timestamp: "2026-01-01T00:00:03Z" }),
+      event({ event_id: "a", agent_id: "web-researcher", timestamp: "2026-01-01T00:00:01Z" }),
+      event({ event_id: "b", agent_id: null, timestamp: "2026-01-01T00:00:02Z" }),
+      event({ event_id: "d", agent_id: "web-researcher", timestamp: "2026-01-01T00:00:04Z" }),
+    ]);
+
+    expect(lanes).toEqual(["web-researcher", "system", "paper-reviewer"]);
+  });
+
+  it("orders events within the same millisecond by their microsecond timestamps", () => {
+    const lanes = timelineLanes([
+      event({ event_id: "late", agent_id: "gateway-late", timestamp: "2026-01-01T00:00:00.000900+00:00" }),
+      event({ event_id: "early", agent_id: "gateway-early", timestamp: "2026-01-01T00:00:00.000100+00:00" }),
+    ]);
+
+    expect(lanes).toEqual(["gateway-early", "gateway-late"]);
+  });
+});
+
+describe("newestRunsFirst", () => {
+  it("orders runs by most recent activity instead of run_id", () => {
+    const runs = newestRunsFirst([
+      { run_id: "a-probe", updated_at: "2026-01-01T00:00:01Z" },
+      { run_id: "z-research", updated_at: "2026-01-01T00:00:09Z" },
+    ]);
+
+    expect(runs.map((run) => run.run_id)).toEqual(["z-research", "a-probe"]);
+  });
+});
+
+describe("fetchRunEvents", () => {
+  it("follows cursors to load every event of one run", async () => {
+    const urls: string[] = [];
+    const pages: Page<EventRecord>[] = [
+      { items: [event({ event_id: "1" })], next_cursor: "1:1" },
+      { items: [event({ event_id: "2" })], next_cursor: null },
+    ];
+    const fetcher = vi.fn(async (url: string) => {
+      urls.push(url);
+      return pages.shift()!;
+    });
+
+    const items = await fetchRunEvents("run-1", fetcher);
+
+    expect(items.map((item) => item.event_id)).toEqual(["1", "2"]);
+    expect(urls).toEqual([
+      "/api/events?run_id=run-1&limit=100",
+      "/api/events?run_id=run-1&limit=100&cursor=1%3A1",
+    ]);
   });
 });

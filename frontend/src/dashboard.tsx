@@ -87,6 +87,34 @@ export async function fetchPaged<T>(
   return response.json() as Promise<Page<T>>;
 }
 
+const MAX_RUN_EVENTS = 2000;
+
+// Loads one run's history (or every run's when runId is empty) by following cursors.
+export async function fetchRunEvents(runId: string, fetcher?: Fetcher<EventRecord>): Promise<EventRecord[]> {
+  const items: EventRecord[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: Page<EventRecord> = await fetchPaged<EventRecord>("/api/events", { run_id: runId, limit: 100, cursor }, fetcher);
+    items.push(...page.items);
+    cursor = page.next_cursor;
+  } while (cursor && items.length < MAX_RUN_EVENTS); // ponytail: capped history, add windowing if runs grow past it
+  return items;
+}
+
+// Date.parse keeps milliseconds only; the API's fixed-offset ISO strings break ties by microsecond.
+const byTime = (left: EventRecord, right: EventRecord) =>
+  Date.parse(left.timestamp) - Date.parse(right.timestamp) || left.timestamp.localeCompare(right.timestamp);
+
+// One lane per agent that appears in the events, ordered by first activity.
+export function timelineLanes(events: EventRecord[]): string[] {
+  return [...new Set([...events].sort(byTime).map((item) => item.agent_id ?? "system"))];
+}
+
+export function newestRunsFirst<T extends RunRow>(runs: T[]): T[] {
+  const updated = (run: T) => Date.parse(text(run.updated_at)) || 0;
+  return [...runs].sort((left, right) => updated(right) - updated(left));
+}
+
 export function eventCursor(event: EventRecord): string {
   return `${event.sequence ?? 0}:${event.event_id}`;
 }
@@ -286,8 +314,6 @@ export function RunDetailView({ detail }: { detail: RunDetail }) {
   );
 }
 
-const LANES = ["researcher", "analyst", "operator", "system"];
-
 export function App() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [runs, setRuns] = useState<RunRow[]>([]);
@@ -302,21 +328,16 @@ export function App() {
     let closed = false;
     let stream: LiveEventStream | undefined;
     const load = async () => {
-      const [runPage, eventPage] = await Promise.all([
-        fetchPaged<RunRow>("/api/runs", { limit: 100 }),
-        fetchPaged<EventRecord>("/api/events", { limit: 100 }),
-      ]);
+      const runPage = await fetchPaged<RunRow>("/api/runs", { limit: 100 });
       if (closed) return;
-      setRuns(runPage.items);
-      setEvents(eventPage.items);
-      const runId = runPage.items[0]?.run_id ?? eventPage.items.at(-1)?.run_id ?? "";
-      setSelectedRun(runId);
-      if (runId) setDetail(await apiFetch(`/api/runs/${encodeURIComponent(runId)}`).then((response) => response.json()));
-      const last = eventPage.items.at(-1);
+      const ordered = newestRunsFirst(runPage.items);
+      setRuns(ordered);
+      setSelectedRun(ordered[0]?.run_id ?? "");
       const protocol = location.protocol === "https:" ? "wss" : "ws";
+      // History comes from fetchRunEvents; the socket only adds new events.
       stream = connectLiveEvents({
         urlBase: `${protocol}://${location.host}/api/live`,
-        initialCursor: last ? eventCursor(last) : null,
+        initialCursor: null,
         onConnected: setConnected,
         onEvents: (items) => setEvents((current) => mergeCatchUpEvents(current, [], items).slice(-1000)),
       });
@@ -329,13 +350,22 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    let stale = false;
+    void fetchRunEvents(selectedRun).then((items) => {
+      if (!stale) setEvents(items);
+    });
     if (!selectedRun) {
       setDetail(null);
-      return;
+    } else {
+      void apiFetch(`/api/runs/${encodeURIComponent(selectedRun)}`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((loaded: RunDetail | null) => {
+          if (!stale) setDetail(loaded);
+        });
     }
-    void apiFetch(`/api/runs/${encodeURIComponent(selectedRun)}`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((loaded: RunDetail | null) => setDetail(loaded));
+    return () => {
+      stale = true;
+    };
   }, [selectedRun]);
 
   const runEvents = useMemo(
@@ -344,16 +374,19 @@ export function App() {
   );
   const visible = useMemo(
     () =>
-      runEvents.filter(
-        (event) =>
-          !filter ||
-          event.kind.includes(filter) ||
-          event.agent_id?.includes(filter) ||
-          text(event.payload.tool).includes(filter) ||
-          event.trace_id?.includes(filter),
-      ),
+      runEvents
+        .filter(
+          (event) =>
+            !filter ||
+            event.kind.includes(filter) ||
+            event.agent_id?.includes(filter) ||
+            text(event.payload.tool).includes(filter) ||
+            event.trace_id?.includes(filter),
+        )
+        .sort(byTime),
     [runEvents, filter],
   );
+  const lanes = useMemo(() => timelineLanes(visible), [visible]);
   const usage = useMemo(() => summarizeToolLifecycle(runEvents), [runEvents]);
 
   return (
@@ -372,7 +405,11 @@ export function App() {
         <Metric label="Retries" value={usage.retries} />
         <select value={selectedRun} onChange={(event) => setSelectedRun(event.target.value)}>
           <option value="">All runs</option>
-          {runs.map((run) => <option value={run.run_id} key={run.run_id}>{run.run_id}</option>)}
+          {runs.map((run) => (
+            <option value={run.run_id} key={run.run_id}>
+              {run.run_id} · {text(run.state, "active")}
+            </option>
+          ))}
         </select>
         <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter agent, event, trace…" />
       </section>
@@ -384,7 +421,8 @@ export function App() {
 
       {page === "timeline" ? (
         <section className="timeline">
-          {LANES.map((lane) => (
+          {lanes.length === 0 && <p className="empty">No events for this run yet.</p>}
+          {lanes.map((lane) => (
             <div className="lane" key={lane}>
               <div className="lane-name">{lane}</div>
               <div className="events">
