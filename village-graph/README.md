@@ -87,6 +87,29 @@ day         Claude Opus 4.8 -> Gemini 2.5 Pro  Gemini 2.5 Pro -> Claude Opus 4.8
 ...
 ```
 
+## Web UI
+
+```bash
+uv run village-graph web              # http://127.0.0.1:8765  (--port / --host to change)
+```
+
+Type any CLI command into the box, without the `village-graph` prefix, e.g. `top-pairs --limit 40`,
+`hubs --since 2026-09-02`, `pair "Claude Opus 4.8" "Gemini 2.5 Pro"` or `build --days 30`. The result
+is drawn as a graph with the same tables underneath.
+
+- **Node size** is interaction volume. **Edge width** is the count for that direction; hover an edge to
+  see the number. Orange nodes are the ones you asked about.
+- **Click a node** to run `neighbors` for it. **Click an edge** to run `pair` for its two ends. The
+  current `--since`, `--until`, `--room`, `--goal` and `--kind` filters carry over.
+- The command lives in the URL hash, so the browser's back button works and any view can be shared as a
+  link.
+- `hubs` draws the edges among the hubs it lists. `-h` shows the CLI help.
+
+The server uses only the stdlib and handles one request at a time, so a `build` from the UI blocks until
+it finishes. It binds to localhost. On a remote machine, tunnel it with
+`ssh -L 8765:127.0.0.1:8765 <host>` rather than using `--host 0.0.0.0`, since the server has no auth.
+The graph library (Cytoscape.js) loads from cdnjs, so the browser needs internet access.
+
 ## How an interaction is defined
 
 The dataset has **no reply-to or recipient field**, so edges come from the message text:

@@ -14,4 +14,4 @@ dependencies = []
 village-graph = "village_graph:main"
 
 [tool.hatch.build.targets.wheel]
-only-include = ["village_graph.py"]
+only-include = ["village_graph.py", "village_web.html"]

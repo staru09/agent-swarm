@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Village Graph</title>
+<link rel="icon" href="data:,">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.34.3/cytoscape.min.js"></script>
+<style>
+  :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4; --panel: #fff;
+          --node: #6366f1; --focus: #f59e0b; --human: #a8a29e; --edge: #a5b4fc; --err: #b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #44403c; --panel: #292524;
+            --node: #818cf8; --edge: #4f46e5; --err: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+         font: 14px/1.4 system-ui, sans-serif; }
+  form { display: flex; gap: 8px; align-items: center; }
+  form span { color: var(--muted); font-family: ui-monospace, monospace; }
+  input { flex: 1; min-width: 0; padding: 8px 10px; font: 14px ui-monospace, monospace; color: var(--fg);
+          background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; background: var(--node); color: #fff; cursor: pointer; }
+  #examples { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  #examples a { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
+                font: 12px ui-monospace, monospace; text-decoration: none; }
+  #examples a:hover { color: var(--fg); }
+  #status { margin: 8px 0; color: var(--muted); white-space: pre-wrap; font: 12px ui-monospace, monospace; }
+  #status.error { color: var(--err); }
+  #cy { height: 62vh; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  #tables { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; overflow-x: auto; }
+  table { border-collapse: collapse; background: var(--panel); font-size: 13px; }
+  th, td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<form id="form">
+  <span>village-graph</span>
+  <input id="cmd" autocomplete="off" spellcheck="false" aria-label="command">
+  <button>Run</button>
+</form>
+<div id="examples"></div>
+<div id="status"></div>
+<div id="cy"></div>
+<div id="tables"></div>
+<script>
+const $ = s => document.querySelector(s);
+const EXAMPLES = ['top-pairs --limit 40', 'hubs', 'neighbors "DeepSeek-V4-Pro"',
+  'pair "Claude Opus 4.8" "Gemini 2.5 Pro"', 'top-pairs --kind addressed --since 2026-09-03 --limit 30',
+  'neighbors human', 'build --days 30', '-h'];
+let cy, flags = '';
+
+for (const ex of EXAMPLES) {
+  const a = Object.assign(document.createElement('a'), { href: '#' + encodeURIComponent(ex), textContent: ex });
+  $('#examples').append(a);
+}
+
+function go(cmd) {  // every run goes through the URL hash, so back/forward and links work
+  const h = '#' + encodeURIComponent(cmd);
+  if (location.hash === h) run(cmd); else location.hash = h;
+}
+
+function status(text, isError) {
+  $('#status').textContent = text;
+  $('#status').className = isError ? 'error' : '';
+}
+
+async function run(cmd) {
+  $('#cmd').value = cmd;
+  status('running…');
+  let r;
+  try { r = await (await fetch('/api?cmd=' + encodeURIComponent(cmd))).json(); }
+  catch (e) { return status('request failed: ' + e, true); }
+  if (r.error) return status(r.error, true);
+  if (r.text) return status(r.text);
+  status(`graph covers ${r.covers} · click a node for its neighbors, an edge for the pair`);
+  flags = r.flags;
+  tables(r.tables);
+  graph(r.graph);
+}
+
+function tables(list) {
+  $('#tables').replaceChildren(...list.map(([headers, rows]) => {
+    const t = document.createElement('table');
+    for (const [cells, tag] of [[headers, 'th'], ...rows.map(r => [r, 'td'])]) {
+      const tr = t.insertRow();
+      for (const v of cells) tr.append(Object.assign(document.createElement(tag), { textContent: v ?? '' }));
+    }
+    return t;
+  }));
+}
+
+function graph({ nodes, edges, focus }) {
+  const css = getComputedStyle(document.documentElement), v = n => css.getPropertyValue(n).trim();
+  const deg = {};
+  for (const [s, d, n] of edges) { deg[s] = (deg[s] || 0) + n; deg[d] = (deg[d] || 0) + n; }
+  const maxDeg = Math.max(1, ...Object.values(deg)), maxW = Math.max(1, ...edges.map(e => e[2]));
+  const color = n => focus.includes(n) ? v('--focus') : n === 'Human' ? v('--human') : v('--node');
+  const elements = [
+    ...nodes.map(n => ({ data: { id: n, size: 18 + 42 * Math.sqrt((deg[n] || 0) / maxDeg), color: color(n) } })),
+    ...edges.map(([s, d, n]) => ({ data: { source: s, target: d, n, width: 1 + 9 * n / maxW } })),
+  ];
+  const layout = focus.length === 1
+    ? { name: 'concentric', concentric: n => focus.includes(n.id()) ? 2 : 1, levelWidth: () => 1, animate: false }
+    : { name: nodes.length > 2 ? 'cose' : 'grid', animate: false, nodeRepulsion: () => 120000, nodeDimensionsIncludeLabels: true,
+        idealEdgeLength: () => 70, edgeElasticity: () => 100, nodeOverlap: 20, padding: 30 };
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: $('#cy'), elements, layout,
+    style: [
+      { selector: 'node', style: { label: 'data(id)', width: 'data(size)', height: 'data(size)',
+          'background-color': 'data(color)', color: v('--fg'), 'font-size': 11,
+          'text-valign': 'bottom', 'text-margin-y': 4 } },
+      { selector: 'edge', style: { width: 'data(width)', 'curve-style': 'bezier', opacity: 0.75,
+          'line-color': v('--edge'), 'target-arrow-color': v('--edge'), 'target-arrow-shape': 'triangle',
+          label: 'data(n)', 'font-size': 10, color: v('--fg'), 'text-opacity': 0,
+          'text-background-color': v('--panel'), 'text-background-opacity': 0 } },
+      { selector: 'edge.hover', style: { opacity: 1, 'text-opacity': 1, 'text-background-opacity': 1, 'z-index': 9 } },
+    ],
+  });
+  cy.on('mouseover', 'edge', e => e.target.addClass('hover'));
+  cy.on('mouseout', 'edge', e => e.target.removeClass('hover'));
+  cy.on('tap', 'node', e => go(`neighbors "${e.target.id()}"${flags}`));
+  cy.on('tap', 'edge', e => go(`pair "${e.target.data('source')}" "${e.target.data('target')}"${flags}`));
+}
+
+$('#form').onsubmit = e => { e.preventDefault(); go($('#cmd').value.trim()); };
+addEventListener('hashchange', () => run(decodeURIComponent(location.hash.slice(1))));
+go(decodeURIComponent(location.hash.slice(1)) || 'top-pairs --limit 40');
+</script>
+</body>
+</html>

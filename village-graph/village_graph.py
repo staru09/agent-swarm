@@ -10,12 +10,15 @@ All humans are merged into one "Human" node; the "automated" nudger bot is dropp
   village-graph neighbors "GPT-5.2"
   village-graph top-pairs --since 2026-09-02
   village-graph hubs --goal "hardest game"
+  village-graph web [--port 8765]     # same commands, drawn as an interactive graph in the browser
 Filters on every query: --since/--until (UTC, until exclusive) --room --kind --goal --limit
 Data: $VILLAGE_DATA (dir with the .jsonl.gz files), else the HF cache ($HF_HUB_CACHE or ~/.cache/huggingface/hub).
 """
-import argparse, gzip, json, os, re, sqlite3, sys
+import argparse, contextlib, gzip, io, json, os, re, shlex, sqlite3, sys
 from datetime import datetime, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
 DB = HERE / 'village.db'
@@ -151,8 +154,9 @@ def table(headers, rows):
         print('  '.join(v.ljust(w) for v, w in zip(r, widths)).rstrip())
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def parser():
+    ap = argparse.ArgumentParser(prog='village-graph', description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     sub.add_parser('build').add_argument('--days', type=int, default=7, help='last N days of data; 0 = all')
     f = argparse.ArgumentParser(add_help=False)
@@ -164,53 +168,129 @@ def main():
     sub.add_parser('neighbors', parents=[f]).add_argument('a')
     sub.add_parser('top-pairs', parents=[f])
     sub.add_parser('hubs', parents=[f])
-    a = ap.parse_args()
+    web = sub.add_parser('web', help='interactive graph UI in the browser')
+    web.add_argument('--host', default='127.0.0.1'); web.add_argument('--port', type=int, default=8765)
+    return ap
 
-    if a.cmd == 'build' or not DB.exists():
-        build(a.days if a.cmd == 'build' else 7)
-        if a.cmd == 'build':
-            return
+
+def query(a):
+    """Run a parsed query command -> {covers, tables: [(headers, rows)], graph: {nodes, edges, focus}}."""
+    if not DB.exists():
+        build(7)
     con = sqlite3.connect(DB)
     names = dict(con.execute('SELECT id, name FROM nodes'))
-    print('# graph covers %s -> %s' % tuple((t or '-')[:16] for t in con.execute('SELECT min(ts), max(ts) FROM edges').fetchone()))
+    covers = '%s -> %s' % tuple((t or '-')[:16] for t in con.execute('SELECT min(ts), max(ts) FROM edges').fetchone())
     w, p = where(con, a)
+    tables, edges, focus, extra = [], [], [], []
 
     if a.cmd == 'pair':
         (x, xn), (y, yn) = node(con, a.a), node(con, a.b)
-        table(['direction', '@', 'named', 'total', 'first', 'last'], [
-            [f'{s} -> {d}', *con.execute(f"SELECT sum(kind='addressed'), sum(kind='named'), count(*), "
-                                         f"substr(min(ts),1,16), substr(max(ts),1,16) FROM edges "
-                                         f"WHERE src=? AND dst=? AND {w}", (si, di, *p)).fetchone()]
-            for (si, s), (di, d) in (((x, xn), (y, yn)), ((y, yn), (x, xn)))])
-        print()
-        table([a.by, f'{xn} -> {yn}', f'{yn} -> {xn}'], con.execute(
+        rows = [[f'{s} -> {d}', *con.execute(f"SELECT sum(kind='addressed'), sum(kind='named'), count(*), "
+                                             f"substr(min(ts),1,16), substr(max(ts),1,16) FROM edges "
+                                             f"WHERE src=? AND dst=? AND {w}", (si, di, *p)).fetchone()]
+                for (si, s), (di, d) in (((x, xn), (y, yn)), ((y, yn), (x, xn)))]
+        tables.append((['direction', '@', 'named', 'total', 'first', 'last'], rows))
+        tables.append(([a.by, f'{xn} -> {yn}', f'{yn} -> {xn}'], con.execute(
             f"SELECT substr(ts,1,{10 if a.by == 'day' else 7}) b, sum(src=?), sum(src=?) FROM edges "
             f"WHERE ((src=? AND dst=?) OR (src=? AND dst=?)) AND {w} GROUP BY b ORDER BY b",
-            (x, y, x, y, y, x, *p)).fetchall())
+            (x, y, x, y, y, x, *p)).fetchall()))
+        edges, focus = [(xn, yn, rows[0][3]), (yn, xn, rows[1][3])], [xn, yn]
 
     elif a.cmd == 'neighbors':
-        x, _ = node(con, a.a)
-        table(['partner', 'out', 'in', '@', 'named', 'total'], [
-            [names[o], *r] for o, *r in con.execute(
-                f"SELECT CASE WHEN src=? THEN dst ELSE src END o, sum(src=?), sum(dst=?), "
-                f"sum(kind='addressed'), sum(kind='named'), count(*) t FROM edges "
-                f"WHERE (src=? OR dst=?) AND {w} GROUP BY o ORDER BY t DESC LIMIT ?",
-                (x, x, x, x, x, *p, a.limit))])
+        x, xn = node(con, a.a)
+        rows = [[names[o], *r] for o, *r in con.execute(
+            f"SELECT CASE WHEN src=? THEN dst ELSE src END o, sum(src=?), sum(dst=?), "
+            f"sum(kind='addressed'), sum(kind='named'), count(*) t FROM edges "
+            f"WHERE (src=? OR dst=?) AND {w} GROUP BY o ORDER BY t DESC LIMIT ?",
+            (x, x, x, x, x, *p, a.limit))]
+        tables.append((['partner', 'out', 'in', '@', 'named', 'total'], rows))
+        edges, focus = [e for r in rows for e in ((xn, r[0], r[1]), (r[0], xn, r[2]))], [xn]
 
     elif a.cmd == 'top-pairs':
-        table(['a', 'b', 'a->b', 'b->a', '@', 'named', 'total'], [
-            [names[i], names[j], *r] for i, j, *r in con.execute(
-                f"SELECT min(src,dst) i, max(src,dst) j, sum(src<dst), sum(src>dst), "
-                f"sum(kind='addressed'), sum(kind='named'), count(*) t FROM edges "
-                f"WHERE {w} GROUP BY i, j ORDER BY t DESC LIMIT ?", (*p, a.limit))])
+        rows = [[names[i], names[j], *r] for i, j, *r in con.execute(
+            f"SELECT min(src,dst) i, max(src,dst) j, sum(src<dst), sum(src>dst), "
+            f"sum(kind='addressed'), sum(kind='named'), count(*) t FROM edges "
+            f"WHERE {w} GROUP BY i, j ORDER BY t DESC LIMIT ?", (*p, a.limit))]
+        tables.append((['a', 'b', 'a->b', 'b->a', '@', 'named', 'total'], rows))
+        edges = [e for r in rows for e in ((r[0], r[1], r[2]), (r[1], r[0], r[3]))]
 
     elif a.cmd == 'hubs':
-        table(['node', 'partners', 'out', 'in', 'total'], [
-            [names[n], *r] for n, *r in con.execute(
-                f"SELECT n, count(DISTINCT o), sum(out_), sum(1-out_), count(*) t FROM ("
-                f"  SELECT src n, dst o, 1 out_ FROM edges WHERE {w} UNION ALL"
-                f"  SELECT dst, src, 0 FROM edges WHERE {w}) "
-                f"GROUP BY n ORDER BY count(DISTINCT o) DESC, t DESC LIMIT ?", (*p, *p, a.limit))])
+        raw = con.execute(
+            f"SELECT n, count(DISTINCT o), sum(out_), sum(1-out_), count(*) t FROM ("
+            f"  SELECT src n, dst o, 1 out_ FROM edges WHERE {w} UNION ALL"
+            f"  SELECT dst, src, 0 FROM edges WHERE {w}) "
+            f"GROUP BY n ORDER BY count(DISTINCT o) DESC, t DESC LIMIT ?", (*p, *p, a.limit)).fetchall()
+        tables.append((['node', 'partners', 'out', 'in', 'total'], [[names[n], *r] for n, *r in raw]))
+        ids, qs = [r[0] for r in raw], ','.join('?' * len(raw))
+        edges = [(names[s], names[d], c) for s, d, c in con.execute(  # edges among the hubs shown
+            f"SELECT src, dst, count(*) FROM edges WHERE src IN ({qs}) AND dst IN ({qs}) AND {w} GROUP BY src, dst",
+            (*ids, *ids, *p))]
+        extra = [names[i] for i in ids]
+
+    edges = [e for e in edges if e[2]]
+    nodes = list(dict.fromkeys([*focus, *extra, *(n for e in edges for n in e[:2])]))
+    return {'covers': covers, 'tables': tables, 'graph': {'nodes': nodes, 'edges': edges, 'focus': focus}}
+
+
+def api(cmd):
+    """Run one CLI command string for the web UI. Usage/lookup errors come back as {'error': ...}."""
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            a = parser().parse_args(shlex.split(cmd))
+            if a.cmd == 'web':
+                raise SystemExit('the web UI is already running')
+            if a.cmd == 'build':
+                build(a.days)
+                return {'text': out.getvalue()}
+            r = query(a)
+    except SystemExit as e:
+        if e.code == 0:  # -h / --help
+            return {'text': out.getvalue()}
+        return {'error': e.code if isinstance(e.code, str) else out.getvalue()}
+    except Exception as e:
+        return {'error': f'{type(e).__name__}: {e}'}
+    r['flags'] = ''.join(f' --{k} {shlex.quote(v)}' for k in ('since', 'until', 'room', 'goal', 'kind')
+                         if (v := getattr(a, k)))
+    return r
+
+
+def serve(host, port):
+    page = (HERE / 'village_web.html').read_bytes()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            url = urlparse(self.path)
+            if url.path == '/':
+                body, ctype = page, 'text/html; charset=utf-8'
+            elif url.path == '/api':
+                body = json.dumps(api(parse_qs(url.query).get('cmd', [''])[0])).encode()
+                ctype = 'application/json'
+            else:
+                return self.send_error(404)
+            self.send_response(200)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    print(f'village-graph web UI: http://{host}:{port}')
+    # ponytail: single-threaded (stdout capture is process-global); a `build` from the UI blocks until done.
+    HTTPServer((host, port), Handler).serve_forever()
+
+
+def main():
+    a = parser().parse_args()
+    if a.cmd == 'build':
+        return build(a.days)
+    if a.cmd == 'web':
+        return serve(a.host, a.port)
+    r = query(a)
+    print('# graph covers', r['covers'])
+    for i, (headers, rows) in enumerate(r['tables']):
+        if i:
+            print()
+        table(headers, rows)
 
 
 if __name__ == '__main__':
