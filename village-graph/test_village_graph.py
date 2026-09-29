@@ -51,4 +51,6 @@ assert q('agents')[0] == ['Alpha', 'm-a', 3, 2, 3, 1, '2026-09-01 10:00', '2026-
 pair = v.query(v.parser().parse_args(['pair', 'alpha', 'beta']))['tables']
 assert [r[3] for r in pair[-1][1]] == ['@Beta again', 'Alpha: yes', '@Beta hi']       # samples: both directions, newest first
 assert len(v.query(v.parser().parse_args(['pair', 'alpha', 'beta', '--samples', '0']))['tables']) == 2
+top = v.query(v.parser().parse_args(['top-pairs', '--samples', '2']))['tables'][-1][1]
+assert [r[3] for r in top] == ['@Beta again', 'Alpha: yes']   # top pair's messages, not the newest overall (@Gamma)
 print('ok')

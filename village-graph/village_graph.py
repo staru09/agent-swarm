@@ -166,11 +166,11 @@ def degrees(con, w, p):
 
 
 def among(con, ids, w, p, names):
-    """Directed edge weights between the given nodes, for drawing."""
+    """Directed edge weights between the given nodes, heaviest first, for drawing."""
     qs = ','.join('?' * len(ids))
     return [(names[s], names[d], c) for s, d, c in con.execute(
-        f"SELECT src, dst, count(*) FROM edges WHERE src IN ({qs}) AND dst IN ({qs}) AND {w} GROUP BY src, dst",
-        (*ids, *ids, *p))]
+        f"SELECT src, dst, count(*) c FROM edges WHERE src IN ({qs}) AND dst IN ({qs}) AND {w} "
+        f"GROUP BY src, dst ORDER BY c DESC", (*ids, *ids, *p))]
 
 
 def node(con, q):
@@ -319,6 +319,7 @@ def query(a):
             edges, focus = [(r[0], target[1], r[1]) for r in rows], [target[1]]
         else:
             edges, extra = among(con, ids, *where(con, at), names), [names[i] for i in ids]
+        a = at  # samples: the @-mentions this command is about
 
     elif a.cmd == 'goals':
         tables.append((['start', 'end', 'goal', 'edges'], con.execute(
@@ -327,15 +328,20 @@ def query(a):
             "FROM goals g ORDER BY start_time DESC LIMIT ?", (a.limit,)).fetchall()))
 
     edges = [e for e in edges if e[2]]
-    if a.samples and edges and a.cmd != 'examples':  # newest messages behind the edges drawn
+    if a.samples and edges and a.cmd != 'examples':
+        # Samples follow the result's own ranking: the newest message of each edge in table order, then the
+        # 2nd newest of each, ... so they illustrate the top rows instead of whoever chatted last.
         ids = {n: i for i, n in names.items()}
         we, pe = where(con, a, 'e.')
-        tables.append((['time', 'from', 'to', 'sample messages, newest first'], con.execute(
-            f"SELECT substr(e.ts,1,16), s.name, group_concat(d.name, ', '), {SNIPPET} FROM edges e "
-            f"JOIN messages m ON m.id = e.msg_id JOIN nodes s ON s.id = e.src JOIN nodes d ON d.id = e.dst "
-            f"WHERE (e.src, e.dst) IN (VALUES {','.join(['(?,?)'] * len(edges))}) AND {we} "
-            f"GROUP BY e.msg_id ORDER BY e.ts DESC LIMIT ?",
-            (*(ids[n] for e in edges for n in e[:2]), *pe, a.samples)).fetchall()))
+        tables.append((['time', 'from', 'to', 'sample messages for the top rows'], con.execute(
+            f"WITH want(src, dst, k) AS (VALUES {','.join(['(?,?,?)'] * len(edges))}), "
+            f"hits AS (SELECT e.msg_id, e.ts, e.src, e.dst, w.k, "
+            f"  row_number() OVER (PARTITION BY e.src, e.dst ORDER BY e.ts DESC) rn "
+            f"  FROM edges e JOIN want w ON w.src = e.src AND w.dst = e.dst WHERE {we}) "
+            f"SELECT substr(h.ts,1,16), s.name, group_concat(d.name, ', '), {SNIPPET} FROM hits h "
+            f"JOIN messages m ON m.id = h.msg_id JOIN nodes s ON s.id = h.src JOIN nodes d ON d.id = h.dst "
+            f"GROUP BY h.msg_id ORDER BY min(h.rn), min(h.k) LIMIT ?",
+            (*(x for k, (s, d, _) in enumerate(edges) for x in (ids[s], ids[d], k)), *pe, a.samples)).fetchall()))
     nodes = list(dict.fromkeys([*focus, *extra, *(n for e in edges for n in e[:2])]))
     return {'covers': covers, 'tables': tables, 'graph': {'nodes': nodes, 'edges': edges, 'focus': focus}}
 
