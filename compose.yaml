@@ -96,6 +96,7 @@ services:
       NATS_USER: timeline
       NATS_PASSWORD: timeline-dev
       API_PORT: "8000"
+      API_HOST: 127.0.0.1  # host networking: keep the dashboard off public interfaces
       # Local-only: serve the dashboard without bearer tokens. Remove to enforce RBAC.
       SWARMGUARD_AUTH_DISABLED: "true"
       DATABASE_URL: postgresql://swarmguard:${POSTGRES_PASSWORD:-swarmguard-dev}@127.0.0.1:5432/swarmguard

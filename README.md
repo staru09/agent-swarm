@@ -4,12 +4,12 @@ SwarmGuard is a least-privilege control plane and kernel-level flight recorder f
 
 ## Demo architecture
 
-- Three real Anthropic-powered agent processes: researcher, analyst, and operator.
+- Anthropic-powered agent processes defined in `config/agents.yaml`: the three policy-boundary demo agents (researcher, analyst, operator) and the four-agent [deep-research workflow](#deep-research-experiment).
 - NATS subject permissions prevent sender spoofing and direct access to private tool workers.
-- The gateway applies tool and argument rules from `config/policies.yaml`.
-- JetStream retains requests, decisions, results, and A2A traffic.
+- The gateway applies tool manifests from `config/tools.yaml` and tool and argument rules from `config/policies.yaml`, and denies decoy tools.
+- JetStream retains requests, decisions, results, and A2A traffic. A durable projector writes them to PostgreSQL, and the gateway, workers, and agents export OpenTelemetry spans.
 - Tracee captures focused host events; the collector joins process ancestry to the supervisor PID registry.
-- FastAPI and React render a live per-agent timeline.
+- FastAPI and React render a live per-agent timeline and a run summary. See [Dashboard](#dashboard).
 
 eBPF does not infer semantic intent. It provides independent evidence of OS effects. In the MVP, direct bypass activity creates an alert but does not kill the agent.
 
@@ -23,8 +23,9 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
 cd frontend && npm install && npm run build && cd ..
-docker compose up -d --build
+docker compose up -d --build --wait
 pytest
+cd frontend && npm test && cd ..
 ```
 
 Set `ANTHROPIC_API_KEY`, then run:
@@ -34,14 +35,21 @@ Set `ANTHROPIC_API_KEY`, then run:
 ./scripts/demo.sh
 ```
 
-Open `http://HOST:8000`. The EC2 security group should expose the dashboard only to the presenter’s IP; NATS ports remain bound to loopback.
-For a private EC2 session, prefer an SSH tunnel:
+Then open the [dashboard](#dashboard).
+
+## Dashboard
+
+The compose `timeline` service serves the dashboard and API on `127.0.0.1:8000` of the host. From your own machine, forward the port over SSH (or use your editor's port forwarding):
 
 ```bash
 ssh -L 8000:127.0.0.1:8000 -i YOUR_KEY.pem ubuntu@YOUR_HOST
 ```
 
-Then open `http://127.0.0.1:8000`.
+Then open `http://127.0.0.1:8000`. The local compose stack sets `SWARMGUARD_AUTH_DISABLED=true`, so no token is needed. See [API authentication](#api-authentication-rbac-and-access-audit) to enforce tokens.
+
+- **Run picker:** runs are listed newest activity first with their state, and the newest run is selected by default. Runs named `probe-*` come from `tests/integration_research.py` and contain only decoy denials.
+- **Timeline:** one lane per agent that acted in the selected run (the research run shows `research-orchestrator`, `web-researcher`, `paper-reviewer`, `summary-writer`, and `hypothesis-generator`), and unattributed events go to `system`. The run's full history loads through the paginated `/api/events?run_id=` endpoint in microsecond order, and new events stream in over `/api/live`. Denials and `security.decoy_triggered` events are highlighted in red. Click an event to see its payload.
+- **Run summary:** agent sessions, model steps, tool calls with attempts and policy decisions, and the run's artifacts.
 
 ## JetStream setup
 
@@ -63,7 +71,7 @@ That agent-to-gateway lifecycle subject is an at-most-once lifecycle hop before 
 
 ## Small deployment (Docker Compose)
 
-`docker compose up -d --build --wait` starts NATS, PostgreSQL, a one-shot idempotent `migrate` job, a one-shot `stream-bootstrap` job, the durable `projector`, an OpenTelemetry collector (OTLP/HTTP on `127.0.0.1:4318`, spans appended to `/data/traces.jsonl` in the `otel-data` volume), and the timeline API/dashboard on port 8000. Every port binds to loopback. The gateway, tool workers, and agents run on the host so each process gets only its own credentials and secrets.
+`docker compose up -d --build --wait` starts NATS, PostgreSQL, a one-shot idempotent `migrate` job, a one-shot `stream-bootstrap` job, the durable `projector`, an OpenTelemetry collector (OTLP/HTTP on `127.0.0.1:4318`, spans appended to `/data/traces.jsonl` in the `otel-data` volume), and the timeline API/dashboard on port 8000. Every port binds to loopback, including the host-networked dashboard (`API_HOST=127.0.0.1`). The gateway, tool workers, and agents run on the host so each process gets only its own credentials and secrets.
 
 Runbook (`scripts/ops.sh`):
 
@@ -153,7 +161,7 @@ Set these before running any component in production:
 
 - All historical/query endpoints require a valid `Authorization: Bearer <token>` with at least the `viewer` role. Operational endpoints require `operator+` and security/admin endpoints require `admin` (the `viewer < operator < admin` ladder is enforced by `swarmguard.security.role_satisfies` and the `require_viewer/operator/admin` dependencies).
 - Tokens are dependency-light HMAC-SHA256 bearer tokens (no third-party JWT dependency). Verification checks signature, `exp`, issuer, audience, and a known role.
-- For local use only, `SWARMGUARD_AUTH_DISABLED=true` makes the API treat every caller as a `viewer` named `local-dev`, so the dashboard works without a token. The local `compose.yaml` sets it; remove it there to enforce tokens. Production refuses to start when it is set.
+- For local use only, `SWARMGUARD_AUTH_DISABLED=true` makes the API treat every caller as a `viewer` named `local-dev`, so the dashboard works without a token. The local `compose.yaml` sets it and binds the API to loopback; remove it there to enforce tokens. Production refuses to start when it is set. With tokens enforced, mint one with `scripts/ops.sh token` and store it in the browser with `localStorage.setItem("swarmguard_token", "<token>")`.
 - `GET /api/health` is intentionally unauthenticated and returns only non-sensitive liveness (`ok`, `nats`, `database`).
 - The `/api/live` WebSocket authenticates **before** `accept()` using an `Authorization` header or `?token=` query parameter and enforces the `viewer` role; unauthorized clients are closed with policy-violation code `1008`.
 - Every authorization decision emits a structured `access_audit` record via the `swarmguard.access` logger. Records never contain bearer tokens or secrets.
@@ -181,4 +189,4 @@ Set these before running any component in production:
 
 The research workflow is covered by `tests/test_research.py`: decoy probes for all 12 decoys, role-escalation denials, Exa normalization and deduplication against a synthetic fixture, artifact rules, and orchestrator handoff and resume behaviour. `SWARMGUARD_LIVE_EXA=1` enables an opt-in live Exa test.
 
-`pytest` covers protocol subjects, deny-by-default policy and argument checks, Tracee normalization, ancestry attribution, and host-noise filtering. Security coverage includes environment/config fail-closed behaviour, NATS connect hardening, API RBAC/auth/WebSocket/CORS/access-log, redaction/encryption, SSRF (IPv4/IPv6/DNS-rebinding), `workspace_read` path/symlink containment and direct-worker bypass, and worker resource limits. The frontend production build is checked separately with `npm run build`.
+`pytest` covers protocol subjects, deny-by-default policy and argument checks, Tracee normalization, ancestry attribution, and host-noise filtering. Security coverage includes environment/config fail-closed behaviour, NATS connect hardening, API RBAC/auth/WebSocket/CORS/access-log, redaction/encryption, SSRF (IPv4/IPv6/DNS-rebinding), `workspace_read` path/symlink containment and direct-worker bypass, and worker resource limits. `npm test` in `frontend/` covers API paging, live reconnect and catch-up, lifecycle summaries, per-agent timeline lanes, newest-first run ordering, and run-scoped history loading. `npm run build` checks the production build.
