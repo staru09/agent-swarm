@@ -51,6 +51,9 @@ class AnthropicHarnessAdapter:
         self.registration = load_agent_registry().resolve_agent(agent_id)
         self.tool_registry = load_tool_registry()
         catalog = self.registration.tools + self.registration.decoy_tools
+        if os.getenv("SWARMGUARD_TOOL_CATALOG") == "all":
+            # Experiment switch: show every registered tool; the gateway still enforces the role's policy.
+            catalog = tuple(self.tool_registry.tool_names())
         self.tools = self.tool_registry.anthropic_tools(tuple(sorted(catalog)))
 
     async def connect(self) -> None:

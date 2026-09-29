@@ -66,6 +66,14 @@ def test_every_research_agent_sees_three_decoys() -> None:
         assert [tool["name"] for tool in agent.tools] == sorted(registration.tools + registration.decoy_tools)
 
 
+def test_full_catalog_switch_shows_every_registered_tool(monkeypatch) -> None:
+    monkeypatch.setenv("SWARMGUARD_TOOL_CATALOG", "all")
+
+    agent = Agent("paper-reviewer", "run-1", client=object())
+
+    assert [tool["name"] for tool in agent.tools] == load_tool_registry().tool_names()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("agent_id", "decoy"), DECOY_PAIRS)
 async def test_decoy_invocation_is_denied_with_security_event_and_no_worker(agent_id: str, decoy: str) -> None:
