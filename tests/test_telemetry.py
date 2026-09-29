@@ -80,3 +80,9 @@ def test_tracee_v024_flat_json_is_supported(tmp_path: Path) -> None:
     assert event.agent_id == "researcher"
     assert event.kind == EventKind.KERNEL_ALERT
     assert event.payload["fields"]["pathname"] == "/usr/bin/curl"
+
+
+def test_tracee_linking_is_documented_as_identity_only() -> None:
+    assert normalize_tracee.__doc__ is not None
+    assert "identity-only" in normalize_tracee.__doc__
+    assert "does not fabricate trace context" in normalize_tracee.__doc__
