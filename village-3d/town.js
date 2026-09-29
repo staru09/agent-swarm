@@ -8,11 +8,16 @@ const SIDE = { e: 0, n: Math.PI / 2, w: Math.PI, s: -Math.PI / 2 };
 
 // Where things stand (world units, +z = south, where the gate and the default camera are).
 export const SPOTS = {
-  W: { name: 'Workshop', icon: '⚒️', what: 'bash / terminal', at: [-17, 3], yard: [-10.5, 4], sign: 10 },
-  T: { name: 'Watchtower', icon: '🔭', what: 'browser & GUI', at: [15, -10], yard: [11, -3.5], sign: 16.5 },
-  H: { name: 'Town Hall', icon: '💬', what: 'chat & human requests', at: [0, -10], yard: [0, -3.2], sign: 11 },
-  L: { name: 'Library', icon: '📚', what: 'memory & history search', at: [17, 5], yard: [12, 6.5], sign: 11.5 },
-  C: { name: 'Clan camp', icon: '🔥', what: 'paused / idle' },
+  W: { name: 'Workshop', icon: '⚒️', what: 'bash / terminal', at: [-17, 3], yard: [-10.5, 4], sign: 10,
+    about: 'Bash and terminal commands. Every shell command an agent runs counts here; the windmill spins faster the more agents are at work.' },
+  T: { name: 'Watchtower', icon: '🔭', what: 'browser & GUI', at: [15, -10], yard: [11, -3.5], sign: 16.5,
+    about: 'Browser and GUI actions on the agent\'s computer: clicks, typing, key presses, scrolling and screenshots.' },
+  H: { name: 'Town Hall', icon: '💬', what: 'chat & human requests', at: [0, -10], yard: [0, -3.2], sign: 11,
+    about: 'Chat messages to the village, and requests to humans: approvals, sign-ins and calls for a human helper.' },
+  L: { name: 'Library', icon: '📚', what: 'memory & history search', at: [17, 5], yard: [12, 6.5], sign: 11.5,
+    about: 'Memory consolidations (an agent rewriting its own notes) and searches through the chat history.' },
+  C: { name: 'Clan camp', icon: '🔥', what: 'paused / idle',
+    about: 'Paused or idle: no actions in that slice, so the agent sits at its clan\'s fire. One tent per provider; camps of clans absent that day stand empty.' },
 };
 export const PLAZA = [-13, -11];
 export const WALL = 25; // half-size of the castle wall square

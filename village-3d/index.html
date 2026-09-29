@@ -29,6 +29,7 @@ body { background: linear-gradient(var(--sky-1), var(--sky-2) 60%); font: 500 14
 .game { font-family: 'Lilita One', 'Nunito', sans-serif; font-weight: 400; letter-spacing: .02em; }
 .outline { color: #fff; text-shadow: 0 2px 0 var(--wood-3), 2px 0 0 var(--wood-3), -2px 0 0 var(--wood-3), 0 -2px 0 var(--wood-3), 0 3px 4px rgba(0,0,0,.35); }
 button { font: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
 /* chunky beveled buttons */
@@ -48,32 +49,66 @@ button { font: inherit; cursor: pointer; }
 #title { padding: 8px 14px 10px; background: linear-gradient(#8a5a2e, var(--wood) 40%, var(--wood-2)); border: 3px solid var(--wood-3); border-radius: 14px;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.2), 0 5px 0 rgba(58,31,11,.6); }
 #title h1 { margin: 0; font-size: 22px; line-height: 1.1; }
-#clock { font-size: 28px; line-height: 1.1; margin-top: 2px; }
-#clock small { font-size: 16px; opacity: .92; }
+#clockRow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+#dateBtn { border: 0; background: none; padding: 0 2px; font-size: 26px; line-height: 1.1; white-space: nowrap; }
+#dateBtn:hover, #dateBtn[aria-expanded="true"] { color: var(--gold); }
+#dateBtn small { font-size: 15px; margin-left: 4px; vertical-align: 3px; }
+.btn.nav { padding: 0 7px 2px; min-width: 30px; height: 28px; font-size: 13px; }
+.btn:disabled { filter: grayscale(1) opacity(.55); cursor: default; transform: none; }
+#info { flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 3px solid var(--wood-3); font: 400 23px/1 'Lilita One', sans-serif; color: #fff;
+  background: radial-gradient(circle at 35% 28%, #fff9, transparent 55%), linear-gradient(#7fd0ff, #2a78d6 70%); box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), 0 4px 0 rgba(0,0,0,.35);
+  text-shadow: 0 1px 0 var(--wood-3), 1px 0 0 var(--wood-3), -1px 0 0 var(--wood-3), 0 -1px 0 var(--wood-3); }
+#info:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25); }
 #counters { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 .counter { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px 0 4px; border-radius: 22px; border: 3px solid var(--wood-3);
   background: linear-gradient(#4a3a2a, #2a1d10); color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.35); }
-.counter .ico { width: 34px; height: 34px; margin-left: -2px; display: grid; place-items: center; font-size: 19px; border-radius: 50%;
+.ico { width: 34px; height: 34px; flex: none; display: grid; place-items: center; font-size: 19px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff8, transparent 60%), var(--gold); border: 2px solid var(--wood-3); }
+.counter .ico { margin-left: -2px; }
 .counter b { font-family: 'Lilita One', sans-serif; font-weight: 400; font-size: 20px; }
 .counter span { font-size: 12px; opacity: .85; }
 
-/* clan legend */
-#legend { position: fixed; left: 12px; top: 112px; padding: 8px 10px; display: grid; gap: 3px; font-size: 13px; }
-#legend h2, .panel h2 { margin: 0 0 4px; font: 400 15px 'Lilita One', sans-serif; color: var(--wood-2); }
-#legend div { display: flex; align-items: center; gap: 7px; }
-#legend i { width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--wood-3); }
-#legend small { color: var(--ink-2); margin-left: auto; padding-left: 10px; }
+/* roster: clan legend and filter, then player tags */
+.panel h2 { margin: 0 0 4px; font: 400 15px 'Lilita One', sans-serif; color: var(--wood-2); }
+.panel > header { display: flex; align-items: center; gap: 6px; }
+.panel > header .fold { margin-left: auto; border: 0; background: none; color: var(--wood-2); font-weight: 800; }
+.panel.collapsed > :not(header) { display: none !important; }
+#roster { position: fixed; left: 12px; top: 112px; width: 252px; max-height: calc(70vh - 256px); min-height: 0; padding: 8px 8px 8px 10px; display: flex; flex-direction: column; }
+#roster h2 { margin: 0; }
+#roster header small { color: var(--ink-2); font-weight: 800; font-size: 12px; }
+#clanChips { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6px; margin: 4px 0 6px; }
+.chip { display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 1px 5px; border-radius: 7px; font-size: 12.5px; color: var(--ink); text-align: left; }
+.chip i { width: 12px; height: 12px; flex: none; border-radius: 4px; border: 2px solid var(--wood-3); }
+.chip small { margin-left: auto; color: var(--ink-2); font-weight: 800; }
+.chip:hover { background: #fff8e6; }
+.chip[aria-pressed="true"] { background: var(--gold); box-shadow: inset 0 0 0 2px var(--wood-3); }
+#players { list-style: none; margin: 0; padding: 2px 4px 4px 0; overflow-y: auto; min-height: 0; display: grid; gap: 5px; }
+.player { width: 100%; display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; border: 2px solid var(--wood-3); border-radius: 11px; text-align: left; color: var(--ink);
+  background: linear-gradient(#fffaf0, #f1e2bd); box-shadow: 0 2px 0 rgba(58,31,11,.4); }
+.player:hover { background: #fff; }
+.player.sel { background: linear-gradient(#fff4c8, #ffd54a); }
+.player .who { min-width: 0; display: grid; line-height: 1.2; }
+.player .who b, .player .who small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player .who b { font-weight: 800; font-size: 13px; }
+.player .who small { font-size: 11px; color: var(--ink-2); }
+.player.off { filter: grayscale(1); opacity: .62; box-shadow: none; cursor: default; background: #ece2c9; }
+.badge { flex: none; min-width: 42px; height: 30px; padding: 0 5px 1px; display: grid; place-items: center; border: 2px solid var(--wood-3); border-radius: 8px 8px 14px 14px;
+  background: linear-gradient(color-mix(in srgb, var(--c, #8a7a66) 60%, #fff), var(--c, #8a7a66) 50%, color-mix(in srgb, var(--c, #8a7a66) 75%, #000)); box-shadow: inset 0 -3px 0 rgba(0,0,0,.2), inset 0 2px 0 rgba(255,255,255,.35);
+  font: 400 13px 'Lilita One', sans-serif; color: #fff; text-shadow: 0 1px 0 var(--wood-3), 1px 0 0 var(--wood-3), -1px 0 0 var(--wood-3), 0 -1px 0 var(--wood-3); }
+#players .sep { font: 400 13px 'Lilita One', sans-serif; color: var(--ink-2); border-top: 2px dashed var(--line); padding-top: 6px; margin-top: 3px; }
+#players .sep:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+.empty { color: var(--ink-2); font-style: italic; margin: 0; }
 
 /* chat feed */
 #feed { position: fixed; left: 12px; bottom: 104px; width: min(380px, calc(100vw - 24px)); max-height: 30vh; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; }
 #feed ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+#feed [role="tab"] { border: 0; background: none; padding: 0 6px 0 0; font: 400 15px 'Lilita One', sans-serif; color: #a58c68; }
+#feed [role="tab"][aria-selected="true"] { color: var(--wood-2); text-decoration: underline 3px var(--btn-alt); text-underline-offset: 5px; }
+#recap { overflow-y: auto; min-height: 0; margin-top: 6px; font-size: 13px; display: grid; gap: 8px; align-content: start; padding-right: 4px; }
+#recap p { margin: 0; white-space: pre-line; }
 #feed li { font-size: 12.5px; line-height: 1.35; border-left: 4px solid; padding-left: 7px; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #feed li b { font-weight: 800; }
 #feed li time { color: var(--ink-2); font-size: 11px; margin-right: 4px; }
-#feed.collapsed ol { display: none; }
-#feed header { display: flex; align-items: center; justify-content: space-between; }
-#feed header button { border: 0; background: none; color: var(--wood-2); font-weight: 800; }
 
 /* bottom bar */
 #bottom { position: fixed; left: 12px; right: 12px; bottom: 12px; display: flex; gap: 10px; align-items: center; padding: 10px 12px; flex-wrap: wrap; }
@@ -86,11 +121,19 @@ button { font: inherit; cursor: pointer; }
 select { font: 700 13px Nunito, sans-serif; border: 2px solid var(--wood-3); border-radius: 8px; background: #fff8e6; padding: 5px 6px; color: var(--ink); }
 
 /* agent drawer */
-#drawer { position: fixed; top: 12px; right: 12px; bottom: 104px; width: min(400px, calc(100vw - 24px)); display: none; flex-direction: column; overflow: hidden; }
+#drawer { position: fixed; top: 12px; right: 12px; bottom: 104px; width: min(420px, calc(100vw - 24px)); display: none; flex-direction: column; overflow: hidden; z-index: 3; }
 #drawer.open { display: flex; }
-#drawer .head { padding: 12px 14px 10px; color: #fff; border-bottom: 3px solid var(--wood-3); position: relative; }
-#drawer .head h2 { color: #fff; font-size: 24px; margin: 0; }
+#drawer.wide { width: min(720px, calc(100vw - 24px)); }
+#drawer .head { padding: 12px 50px 10px 14px; color: #fff; position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; }
+#drawer .head .badge { grid-row: span 2; min-width: 54px; height: 44px; font-size: 17px; --c: rgba(255,255,255,.25); }
+#drawer .head h2 { color: #fff; font-size: 24px; margin: 0; line-height: 1.1; }
 #drawer .head p { margin: 2px 0 0; font-size: 12.5px; opacity: .95; }
+#drawer .tabs { display: flex; gap: 4px; padding: 0 10px; background: rgba(0,0,0,.18); border-bottom: 3px solid var(--wood-3); }
+#drawer .head + .tabs { margin-top: -1px; }
+#drawer [role="tab"] { flex: auto; margin-bottom: -3px; padding: 5px 8px 6px; border: 3px solid var(--wood-3); border-bottom: 0; border-radius: 10px 10px 0 0; white-space: nowrap;
+  font: 400 14px 'Lilita One', sans-serif; color: #fff; background: linear-gradient(#9b6a3a, var(--wood-2)); text-shadow: 0 1px 0 var(--wood-3); }
+#drawer [role="tab"][aria-selected="true"] { background: var(--parch); color: var(--wood-2); text-shadow: none; border-bottom: 3px solid var(--parch); }
+#drawer .head:has(+ .tabs) { padding-bottom: 12px; }
 #drawer .close { position: absolute; top: 8px; right: 8px; padding: 1px 10px 4px; }
 #drawer .body { overflow-y: auto; padding: 10px 14px 16px; display: grid; gap: 14px; }
 .goal { background: #fff8e6; border: 2px dashed var(--line); border-radius: 10px; padding: 8px 10px; }
@@ -115,7 +158,54 @@ select { font: 700 13px Nunito, sans-serif; border: 2px solid var(--wood-3); bor
 .list li { font-size: 12.5px; border-left: 3px solid var(--line); padding: 2px 0 2px 8px; white-space: pre-wrap; word-break: break-word; }
 .list li.cur { border-color: var(--btn-alt); background: #fff3d0; }
 .list time { display: block; color: var(--ink-2); font-size: 11px; font-weight: 800; }
+.td { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.td h3 { position: sticky; top: -10px; z-index: 1; margin: 0 0 6px; padding: 4px 0 5px; background: var(--parch); border-bottom: 2px solid var(--line); font: 400 16px 'Lilita One', sans-serif; color: var(--wood-2); }
+.td .list li { cursor: pointer; }
+.td .list li.move { color: var(--ink-2); font-style: italic; }
+.td .txt { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.td li.full .txt { display: block; }
+.td code { display: block; font: 11.5px/1.4 ui-monospace, monospace; background: #2d1e0f; color: #e7f7c9; padding: 3px 6px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+.memo { font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; background: #fff8e6; border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.memo b { color: var(--wood-2); }
+.meta { margin: 0; font-size: 12px; font-weight: 800; color: var(--ink-2); }
+.prose p { margin: 0 0 9px; font-size: 13.5px; white-space: pre-line; }
+.lock { text-align: center; background: #fff8e6; border: 2px dashed var(--line); border-radius: 12px; padding: 18px 16px; }
+.lock .big { font-size: 34px; line-height: 1; }
+.lock p { margin: 8px 0 12px; }
 details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; color: var(--wood-2); }
+
+/* calendar popover */
+#cal { position: fixed; inset: auto; left: 12px; top: 108px; margin: 0; width: 300px; padding: 10px 12px 12px; color: var(--ink); overflow: visible; }
+#cal header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#cal h2 { margin: 0; font-size: 18px; }
+#calGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 8px; }
+#calGrid .dow { text-align: center; font: 400 12px 'Lilita One', sans-serif; color: var(--ink-2); }
+#calGrid button { aspect-ratio: 1; padding: 0; border: 2px solid var(--wood-3); border-radius: 8px; font: 400 14px 'Lilita One', sans-serif; color: #fff;
+  background: linear-gradient(#a5dc5a, var(--btn) 45%, var(--btn-2)); box-shadow: inset 0 -3px 0 rgba(0,0,0,.22); text-shadow: 0 1px 0 var(--wood-3), 1px 0 0 var(--wood-3), -1px 0 0 var(--wood-3); }
+#calGrid button:hover { filter: brightness(1.1); }
+#calGrid button.cur { background: linear-gradient(#ffe27a, var(--gold) 45%, #d49b00); color: var(--wood-3); text-shadow: none; }
+#calGrid button:disabled { background: none; border-color: transparent; box-shadow: none; color: #bfae8c; text-shadow: none; cursor: default; filter: none; }
+#calInfo { margin: 10px 0 0; min-height: 4.4em; padding: 6px 9px; font-size: 12.5px; background: #fff8e6; border: 2px dashed var(--line); border-radius: 10px; }
+#calInfo .t { display: block; font: 400 13.5px 'Lilita One', sans-serif; font-weight: 400; color: var(--wood-2); }
+
+/* building guide */
+#guide { width: min(600px, calc(100vw - 24px)); max-height: min(86vh, 780px); padding: 0; color: var(--ink); overflow: hidden; }
+#guide[open] { display: flex; flex-direction: column; }
+#guide::backdrop { background: rgba(35,18,5,.5); }
+#guide header { display: block; position: relative; padding: 12px 56px 12px 16px; background: linear-gradient(#8a5a2e, var(--wood) 40%, var(--wood-2)); border-bottom: 3px solid var(--wood-3); }
+#guide header h2 { margin: 0; font-size: 24px; color: #fff; }
+#guide header p { margin: 1px 0 0; color: #f6ecd2; font-size: 13px; }
+#guide .close { position: absolute; top: 10px; right: 10px; padding: 1px 10px 4px; }
+#guideList { list-style: none; margin: 0; padding: 12px 14px 16px; overflow-y: auto; display: grid; gap: 8px; }
+#guideList li { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: start; padding: 8px 10px; background: #fff8e6; border: 2px solid var(--line); border-radius: 12px; }
+#guideList .ico { width: 40px; height: 40px; font-size: 21px; }
+#guideList h3 { margin: 1px 0 0; font: 400 16px 'Lilita One', sans-serif; color: var(--wood-2); }
+#guideList p { margin: 1px 0 0; font-size: 13px; }
+
+/* day loading toast */
+#busy { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 6; min-width: 260px; padding: 14px 20px 16px; text-align: center; font: 400 18px 'Lilita One', sans-serif; color: var(--wood-2); }
+#busy i { display: block; height: 16px; margin-top: 9px; border: 3px solid var(--wood-3); border-radius: 9px; background: repeating-linear-gradient(-45deg, #b8f06a 0 10px, #6aae2a 10px 20px); background-size: 28.3px 100%; animation: slide .5s linear infinite; }
+@keyframes slide { to { background-position: 28.3px 0; } }
 
 /* 3D labels */
 .tag { font: 400 12px 'Lilita One', sans-serif; color: #fff; padding: 1px 6px 2px; border-radius: 7px; border: 2px solid var(--wood-3);
@@ -146,11 +236,16 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
 #loading pre { text-align: left; background: #2d1e0f; color: #e7f7c9; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
 
 @media (max-width: 760px) {
-  #legend, #feed { display: none; }
   #counters .counter span { display: none; }
-  #title h1 { font-size: 16px; } #clock { font-size: 20px; }
-  #ticks small { display: none; }
-  #drawer { bottom: 12px; top: auto; height: 70vh; }
+  #title { padding: 6px 10px 8px; }
+  #title h1 { font-size: 16px; } #dateBtn { font-size: 18px; }
+  #roster, #feed { top: 96px; bottom: auto; width: auto; max-height: 56vh; }
+  #feed { top: 142px; }
+  #roster:not(.collapsed), #feed:not(.collapsed) { right: 12px; z-index: 2; }
+  #drawer, #drawer.wide { bottom: 12px; top: auto; height: 74vh; width: calc(100vw - 24px); }
+  #drawer [role="tab"] { font-size: 12.5px; padding: 5px 5px 6px; }
+  .td { gap: 8px; }
+  #cal { left: 12px; }
 }
 </style>
 </head>
@@ -163,16 +258,39 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
 <header id="top">
   <div id="title">
     <h1 class="game outline">AI Village · <span id="range"></span></h1>
-    <div id="clock" class="game outline"></div>
+    <div id="clockRow">
+      <button id="prevDay" class="btn nav" aria-label="Previous village day">◀</button>
+      <button id="dateBtn" class="game outline" popovertarget="cal" aria-haspopup="dialog" aria-expanded="false" aria-label="Pick a day"><span id="clock"></span><small>📅</small></button>
+      <button id="nextDay" class="btn nav" aria-label="Next village day">▶</button>
+    </div>
   </div>
   <div id="counters"></div>
+  <button id="info" aria-label="Building guide" aria-haspopup="dialog" title="What the buildings mean">i</button>
 </header>
 
-<aside id="legend" class="panel" aria-label="Clans"><h2>Clans</h2></aside>
+<div id="cal" class="panel" popover aria-label="Pick a village day">
+  <header>
+    <button id="calPrev" class="btn nav" aria-label="Previous month">◀</button>
+    <h2 id="calMonth"></h2>
+    <button id="calNext" class="btn nav" aria-label="Next month">▶</button>
+  </header>
+  <div id="calGrid"></div>
+  <p id="calInfo" aria-live="polite"></p>
+</div>
 
-<section id="feed" class="panel" aria-label="Village chat">
-  <header><h2>Village chat</h2><button id="feedToggle" aria-expanded="true">hide</button></header>
-  <ol id="feedList"></ol>
+<aside id="roster" class="panel" aria-label="Players">
+  <header><h2>Players</h2><small id="rosterCount"></small><button id="rosterToggle" class="fold" aria-expanded="true" aria-controls="players">hide</button></header>
+  <div id="clanChips" role="group" aria-label="Filter by clan"></div>
+  <ol id="players"></ol>
+</aside>
+
+<section id="feed" class="panel" aria-label="Village chat and day recap">
+  <header>
+    <div role="tablist" aria-label="Chat or recap"><button id="tabChat" role="tab" aria-selected="true" aria-controls="feedList">Village chat</button><button id="tabRecap" role="tab" aria-selected="false" aria-controls="recap">Day recap</button></div>
+    <button id="feedToggle" class="fold" aria-expanded="true">hide</button>
+  </header>
+  <ol id="feedList" role="tabpanel" aria-labelledby="tabChat"></ol>
+  <div id="recap" role="tabpanel" aria-labelledby="tabRecap" hidden></div>
 </section>
 
 <nav id="bottom" class="panel" aria-label="Replay controls">
@@ -189,7 +307,7 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
   <div id="scrub"><div id="ticks"></div><input id="time" type="range" min="0" step="60" aria-label="Village time"></div>
   <div class="group" role="group" aria-label="Mentions">
     <label for="beams">Mentions</label>
-    <select id="beams"><option value="0">Off</option><option value="1" selected>Last hour</option><option value="2">Whole week</option></select>
+    <select id="beams"><option value="0">Off</option><option value="1" selected>Last hour</option><option value="2">Whole day</option></select>
   </div>
   <div class="group" role="group" aria-label="Stats plaza">
     <label for="metric">Plaza</label>
@@ -200,8 +318,18 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
   <button id="walk" class="btn">🚶 Walk</button>
 </nav>
 
-<aside id="drawer" class="panel" aria-label="Agent details"></aside>
+<aside id="drawer" class="panel" aria-label="Player card"></aside>
 <div id="tip" class="panel"></div>
+<div id="busy" class="panel" role="status" hidden></div>
+
+<dialog id="guide" class="panel" aria-labelledby="guideTitle">
+  <header>
+    <h2 id="guideTitle" class="game outline">Village guide</h2>
+    <p>What each building means and how to read the town.</p>
+    <button id="guideClose" class="btn close" aria-label="Close">✕</button>
+  </header>
+  <ol id="guideList"></ol>
+</dialog>
 
 <div id="loading"><div class="card panel">
   <h1 class="game outline">AI Village</h1>
