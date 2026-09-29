@@ -1,0 +1,21 @@
+# Receives OTLP/HTTP spans from gateway, workers, agents and the research
+# orchestrator, and appends them to /data/traces.jsonl for audit correlation.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  file:
+    path: /data/traces.jsonl
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
