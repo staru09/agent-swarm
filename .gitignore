@@ -11,3 +11,4 @@ runtime/
 *.nk
 village-graph/village.db
 village-graph/village.tmp
+village-3d/data.json
