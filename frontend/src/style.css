@@ -34,7 +34,7 @@ input, select { color: inherit; outline: none; }
 .event:hover { transform: translateY(-2px); border-color: #58d6c7; }
 .event span, .event small { display: block; color: #91a0ad; font: 10px "IBM Plex Mono"; }
 .event strong { display: block; margin: 8px 0; font-size: 12px; }
-.event.tool-denied, .event.kernel-alert { border-color: #ff6d68; background: #32191c; }
+.event.tool-denied, .event.kernel-alert, .event.security-decoy_triggered { border-color: #ff6d68; background: #32191c; }
 .event.tool-allowed, .event.tool-completed { border-color: #58d6c7; }
 .run-summary { border: 1px solid #263746; border-radius: 14px; padding: 24px; background: #09141eaa; }
 .summary-heading h2 { margin: 0 0 24px; font: 600 24px "IBM Plex Mono"; }
