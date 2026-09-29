@@ -60,6 +60,11 @@ def _data_fields(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_tracee(raw: dict[str, Any], registry: ProcessRegistry, run_id: str) -> Event | None:
+    """Normalize Tracee evidence with identity-only links to known agents.
+
+    Tracee is independent OS evidence. It links by run_id/agent_id when process
+    ancestry proves that identity, but it does not fabricate trace context.
+    """
     name = raw.get("name") or raw.get("eventName")
     allowed = {
         "sched_process_exec",
@@ -95,6 +100,10 @@ def normalize_tracee(raw: dict[str, Any], registry: ProcessRegistry, run_id: str
         "executable": process.get("executable", raw.get("executable", {})).get("path"),
         "fields": fields,
         "classification": "agent_direct_activity",
+        "execution_identity": {
+            "run_id": run_id,
+            "agent_id": agent_id,
+        },
     }
     alert = False
     if name == "security_file_open":
