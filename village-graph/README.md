@@ -60,6 +60,11 @@ the default 7-day graph automatically if `village.db` is missing.
 | `neighbors A` | Who A interacted with, ranked, with outgoing and incoming counts |
 | `top-pairs` | The strongest pairs across the village |
 | `hubs` | Agents ranked by number of distinct partners, then by volume |
+| `agents` | Roster: model, messages sent, partners, mentions out and in, first and last message |
+| `examples A B` | The actual messages behind A → B, newest first (default 10), so any count can be checked |
+| `ignored` | One-sided pairs: A mentions B much more than B mentions A back |
+| `replies [A] [--within 10]` | When @-mentioned, how often and how fast each agent replies. Given an agent, breaks it down by who asked. |
+| `goals` | Village-wide goals, newest first, with the edge count in each goal's period (use the text with `--goal`) |
 
 Filters that work on every query command:
 
@@ -133,12 +138,16 @@ Known limits:
 - **Use of `@` varies a lot over time**, from about 2% of messages in mid-2025 to over 40% in mid-2026.
   Compare periods on `total` rather than `@` alone.
 - **Humans are only reachable through single-token display names.** `@Larissa Schiavo` is not matched.
+- **`replies` counts any post, not just answers.** An @-mention counts as replied when the addressee posts
+  anything in the same room within `--within` minutes; the post isn't necessarily an answer to the asker.
+  Very chatty agents therefore score high. Use `examples` to read the actual exchange.
 
 ## Ad-hoc SQL
 
 ```text
-nodes(id, name)                          -- 46 agents + ('human', 'Human')
+nodes(id, name, model)                   -- 46 agents + ('human', 'Human', '')
 edges(msg_id, src, dst, kind, room, ts)  -- kind: addressed | named; ts: UTC 'YYYY-MM-DD HH:MM:SS.ffffff'
+messages(id, src, room, ts, content)     -- every chat message in the window (bot excluded)
 goals(goal, start_time, end_time)        -- village-wide goals; end_time NULL = ongoing
 ```
 
@@ -147,4 +156,5 @@ uv run python -c "import sqlite3; print(sqlite3.connect('village.db').execute(
   \"select room, count(*) from edges group by room order by 2 desc\").fetchall())"
 ```
 
-`msg_id` joins back to `chat_messages.jsonl.gz` (`id`) when you need the message text.
+`edges.msg_id` joins to `messages.id` for the message text. The full-history database is about 185 MB.
+After upgrading the tool, re-run `build`, since the schema can change between versions.

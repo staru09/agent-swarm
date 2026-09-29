@@ -17,4 +17,35 @@ assert m('thanks @zak.', 'x') == {'human': 'addressed'}
 assert m('@Claude Opus 4.8 hi', 'x') == {'g': 'addressed'}                  # "@Claude" is not human "claude"
 assert m('@GPT-5 hi @zak', 'human') == {'a': 'addressed'}                   # no Human -> Human
 assert m('I am GPT-5', 'a') == {}                                           # self-mention dropped
+
+# Query SQL on a tiny hand-made graph: Alpha @Beta twice (Beta answers the first after 60 s, the second
+# only after 30 min), Alpha @Gamma once (Gamma only speaks in another room), Beta names Alpha once.
+import sqlite3, tempfile
+from pathlib import Path
+import village_graph as v
+
+v.DB = Path(tempfile.mkdtemp()) / 'test.db'
+con = sqlite3.connect(v.DB)
+con.executescript(v.SCHEMA)
+con.executemany('INSERT INTO nodes VALUES (?,?,?)', [('a', 'Alpha', 'm-a'), ('b', 'Beta', 'm-b'), ('c', 'Gamma', 'm-c')])
+msgs = [('1', 'a', 'general', '2026-09-01 10:00:00.000000', '@Beta hi'),
+        ('2', 'b', 'general', '2026-09-01 10:01:00.000000', 'Alpha: yes'),
+        ('3', 'a', 'general', '2026-09-01 11:00:00.000000', '@Beta again'),
+        ('4', 'b', 'general', '2026-09-01 11:30:00.000000', 'late'),
+        ('5', 'a', 'general', '2026-09-01 12:00:00.000000', '@Gamma hi'),
+        ('6', 'c', 'rest', '2026-09-01 12:00:30.000000', 'elsewhere')]
+con.executemany('INSERT INTO messages VALUES (?,?,?,?,?)', msgs)
+con.executemany('INSERT INTO edges VALUES (?,?,?,?,?,?)', [(i, s, d, k, 'general', msgs[int(i) - 1][3]) for i, s, d, k in
+                [('1', 'a', 'b', 'addressed'), ('2', 'b', 'a', 'named'), ('3', 'a', 'b', 'addressed'), ('5', 'a', 'c', 'addressed')]])
+con.commit()
+q = lambda *args: v.query(v.parser().parse_args(args))['tables'][0][1]
+
+assert q('replies') == [['Beta', 2, 1, '50%', 60], ['Gamma', 1, 0, '0%', None]]
+assert q('replies', 'beta') == [['Alpha', 2, 1, '50%', 60]]
+assert q('replies', '--within', '31') == [['Beta', 2, 2, '100%', 930], ['Gamma', 1, 0, '0%', None]]
+ignored = q('ignored')
+assert sorted(ignored[:2]) == [['Alpha', 'Beta', 2, 1, '50%'], ['Alpha', 'Gamma', 1, 0, '0%']]
+assert ignored[2] == ['Beta', 'Alpha', 1, 2, '200%']
+assert [r[3] for r in q('examples', 'alpha', 'beta')] == ['@Beta again', '@Beta hi']
+assert q('agents')[0] == ['Alpha', 'm-a', 3, 2, 3, 1, '2026-09-01 10:00', '2026-09-01 12:00']
 print('ok')

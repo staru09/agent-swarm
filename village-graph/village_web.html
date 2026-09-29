@@ -30,7 +30,9 @@
   #cy { height: 62vh; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
   #tables { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; overflow-x: auto; }
   table { border-collapse: collapse; background: var(--panel); font-size: 13px; }
-  th, td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th, td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap;
+           vertical-align: top; }
+  td:last-child { white-space: normal; min-width: 12ch; max-width: 90ch; }  /* message text in `examples` */
   th { color: var(--muted); font-weight: 500; }
 </style>
 </head>
@@ -46,8 +48,9 @@
 <div id="tables"></div>
 <script>
 const $ = s => document.querySelector(s);
-const EXAMPLES = ['top-pairs --limit 40', 'hubs', 'neighbors "DeepSeek-V4-Pro"',
-  'pair "Claude Opus 4.8" "Gemini 2.5 Pro"', 'top-pairs --kind addressed --since 2026-09-03 --limit 30',
+const EXAMPLES = ['top-pairs --limit 40', 'hubs', 'agents', 'neighbors "DeepSeek-V4-Pro"',
+  'pair "Claude Opus 4.8" "Gemini 2.5 Pro"', 'examples "Claude Opus 4.8" "Gemini 2.5 Pro"', 'ignored --limit 30',
+  'replies', 'replies "Gemini 2.5 Pro"', 'top-pairs --kind addressed --since 2026-09-03 --limit 30', 'goals',
   'neighbors human', 'build --days 30', '-h'];
 let cy, flags = '';
 
