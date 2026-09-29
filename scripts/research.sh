@@ -38,4 +38,4 @@ env -u EXA_API_KEY NATS_USER=research-orchestrator NATS_PASSWORD=research-orches
   NATS_DEV_PASSWORDS=true OTEL_SERVICE_NAME=swarmguard-research \
   swarmguard-research --topic "$TOPIC" --run-id "$RUN_ID"
 
-printf 'Artifacts: artifacts/%s\nLogs: %s\nDashboard: http://127.0.0.1:8000 (token: scripts/ops.sh token)\n' "$RUN_ID" "$LOGS"
+printf 'Artifacts: artifacts/%s\nLogs: %s\nDashboard: http://127.0.0.1:8000\n' "$RUN_ID" "$LOGS"

@@ -416,6 +416,16 @@ def resolve_cors_origins(getenv: Getenv | None = None) -> list[str]:
     return ["*"]
 
 
+def auth_disabled(getenv: Getenv | None = None) -> bool:
+    """Local-only switch that lets the API skip bearer tokens; refused in production."""
+    getenv = _getenv(getenv)
+    if (getenv("SWARMGUARD_AUTH_DISABLED") or "").strip().lower() != "true":
+        return False
+    if is_production(getenv):
+        raise SecurityConfigError("SWARMGUARD_AUTH_DISABLED must not be set in production")
+    return True
+
+
 def resolve_api_bind_host(getenv: Getenv | None = None) -> str:
     getenv = _getenv(getenv)
     host = getenv("API_HOST") or "0.0.0.0"

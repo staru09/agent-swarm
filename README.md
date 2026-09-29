@@ -73,7 +73,7 @@ Runbook (`scripts/ops.sh`):
 | `scripts/ops.sh migrate` | Re-apply all migrations (idempotent) |
 | `scripts/ops.sh streams` | Re-apply the JetStream topology |
 | `scripts/ops.sh secrets` | Credential bootstrap: generate signing, encryption, and database secrets into `.env` |
-| `scripts/ops.sh token [subject] [role] [ttl]` | Mint a dashboard/API bearer token (store it as `localStorage.swarmguard_token`) |
+| `scripts/ops.sh token [subject] [role] [ttl]` | Mint an API bearer token (only needed when `SWARMGUARD_AUTH_DISABLED` is unset) |
 | `scripts/ops.sh backup [file]` / `restore FILE` | `pg_dump` the projections to a gzip file and restore it |
 | `scripts/ops.sh reload-policy` | Send `SIGHUP` to the gateway; a malformed policy file keeps the previous rules |
 | `scripts/ops.sh status` | Container state and `/api/health` |
@@ -153,6 +153,7 @@ Set these before running any component in production:
 
 - All historical/query endpoints require a valid `Authorization: Bearer <token>` with at least the `viewer` role. Operational endpoints require `operator+` and security/admin endpoints require `admin` (the `viewer < operator < admin` ladder is enforced by `swarmguard.security.role_satisfies` and the `require_viewer/operator/admin` dependencies).
 - Tokens are dependency-light HMAC-SHA256 bearer tokens (no third-party JWT dependency). Verification checks signature, `exp`, issuer, audience, and a known role.
+- For local use only, `SWARMGUARD_AUTH_DISABLED=true` makes the API treat every caller as a `viewer` named `local-dev`, so the dashboard works without a token. The local `compose.yaml` sets it; remove it there to enforce tokens. Production refuses to start when it is set.
 - `GET /api/health` is intentionally unauthenticated and returns only non-sensitive liveness (`ok`, `nats`, `database`).
 - The `/api/live` WebSocket authenticates **before** `accept()` using an `Authorization` header or `?token=` query parameter and enforces the `viewer` role; unauthorized clients are closed with policy-violation code `1008`.
 - Every authorization decision emits a structured `access_audit` record via the `swarmguard.access` logger. Records never contain bearer tokens or secrets.

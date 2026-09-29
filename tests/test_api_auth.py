@@ -45,6 +45,7 @@ def real_auth_store(monkeypatch):
     # Exercise the real auth dependency (no override) against an in-memory store.
     monkeypatch.delenv("SWARMGUARD_ENV", raising=False)
     monkeypatch.delenv("SWARMGUARD_API_SIGNING_KEY", raising=False)
+    monkeypatch.delenv("SWARMGUARD_AUTH_DISABLED", raising=False)
     original = app.dependency_overrides.copy()
     app.dependency_overrides.clear()
     timeline.query_store = InMemoryQueryStore(InMemoryProjectionStore())
@@ -82,6 +83,20 @@ def test_query_endpoint_rejects_expired_and_forged_tokens() -> None:
     with TestClient(app) as client:
         assert client.get("/api/runs", headers={"Authorization": f"Bearer {expired}"}).status_code == 401
         assert client.get("/api/runs", headers={"Authorization": f"Bearer {forged}"}).status_code == 401
+
+
+def test_local_auth_switch_serves_viewer_endpoints_and_live_feed_without_token(monkeypatch) -> None:
+    monkeypatch.setenv("SWARMGUARD_AUTH_DISABLED", "true")
+    with TestClient(app) as client:
+        assert client.get("/api/runs").status_code == 200
+        with client.websocket_connect("/api/live"):
+            pass
+
+
+def test_local_auth_switch_is_refused_in_production() -> None:
+    env = {"SWARMGUARD_ENV": "production", "SWARMGUARD_AUTH_DISABLED": "true"}
+    with pytest.raises(security.SecurityConfigError):
+        security.auth_disabled(env.get)
 
 
 def test_higher_roles_satisfy_viewer_endpoints() -> None:

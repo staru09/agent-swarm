@@ -96,6 +96,8 @@ services:
       NATS_USER: timeline
       NATS_PASSWORD: timeline-dev
       API_PORT: "8000"
+      # Local-only: serve the dashboard without bearer tokens. Remove to enforce RBAC.
+      SWARMGUARD_AUTH_DISABLED: "true"
       DATABASE_URL: postgresql://swarmguard:${POSTGRES_PASSWORD:-swarmguard-dev}@127.0.0.1:5432/swarmguard
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]

@@ -54,6 +54,23 @@ def _extract_bearer_token(headers: Any, query_token: str | None = None) -> str:
     return query_token or ""
 
 
+LOCAL_CLAIMS = security.TokenClaims(
+    sub="local-dev",
+    role="viewer",
+    iss=security.TOKEN_ISSUER,
+    aud=security.TOKEN_AUDIENCE,
+    iat=0.0,
+    exp=float("inf"),
+)
+
+
+def _authenticate(token: str) -> security.TokenClaims:
+    # SWARMGUARD_AUTH_DISABLED=true (development only) treats every caller as a local viewer.
+    if security.auth_disabled():
+        return LOCAL_CLAIMS
+    return security.verify_token(token)
+
+
 class _RoleChecker:
     """Stable, overridable FastAPI dependency enforcing a minimum role.
 
@@ -67,7 +84,7 @@ class _RoleChecker:
     async def __call__(self, request: Request) -> security.TokenClaims:
         token = _extract_bearer_token(request.headers)
         try:
-            claims = security.verify_token(token)
+            claims = _authenticate(token)
         except security.AuthError as exc:
             _emit_access(request, None, "deny", 401)
             raise HTTPException(status_code=401, detail="authentication required") from exc
@@ -636,6 +653,7 @@ async def lifespan(_: FastAPI):
         await timeline.stop()
 
 
+security.auth_disabled()  # fail fast at startup if the local auth switch is set in production
 app = FastAPI(title="SwarmGuard", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -824,7 +842,7 @@ async def live(websocket: WebSocket) -> None:
     # closed with a policy-violation code (1008) and never see live audit data.
     token = _extract_bearer_token(websocket.headers, websocket.query_params.get("token"))
     try:
-        claims = security.verify_token(token)
+        claims = _authenticate(token)
         if not security.role_satisfies(claims.role, "viewer"):
             raise security.AuthError("insufficient role for live feed")
     except security.AuthError:
