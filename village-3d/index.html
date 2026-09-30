@@ -192,6 +192,8 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
 #guide { width: min(600px, calc(100vw - 24px)); max-height: min(86vh, 780px); padding: 0; color: var(--ink); overflow: hidden; }
 #guide[open] { display: flex; flex-direction: column; }
 #guide::backdrop { background: rgba(35,18,5,.5); }
+#guide footer { padding: 8px 16px; font-size: 12px; color: var(--ink-2); border-top: 2px solid var(--line); background: var(--parch-2); }
+#guide footer a { color: var(--wood-2); font-weight: 800; }
 #guide header { display: block; position: relative; padding: 12px 56px 12px 16px; background: linear-gradient(#8a5a2e, var(--wood) 40%, var(--wood-2)); border-bottom: 3px solid var(--wood-3); }
 #guide header h2 { margin: 0; font-size: 24px; color: #fff; }
 #guide header p { margin: 1px 0 0; color: #f6ecd2; font-size: 13px; }
@@ -329,6 +331,9 @@ details summary { cursor: pointer; font: 400 15px 'Lilita One', sans-serif; colo
     <button id="guideClose" class="btn close" aria-label="Close">✕</button>
   </header>
   <ol id="guideList"></ol>
+  <footer>Data: <a href="https://theaidigest.org/village" target="_blank" rel="noopener">AI Village</a> by AI Digest
+    (<a href="https://huggingface.co/datasets/aidigestorg/ai-village" target="_blank" rel="noopener">aidigestorg/ai-village</a>).
+    3D models: <a href="https://kenney.nl" target="_blank" rel="noopener">Kenney</a> (CC0).</footer>
 </dialog>
 
 <div id="loading"><div class="card panel">

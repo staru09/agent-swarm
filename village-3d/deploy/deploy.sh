@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Host village-3d on this machine behind Caddy.
-#   sudo deploy/deploy.sh tunnel                       # once: behind a Cloudflare Tunnel (Cloudflare does HTTPS, Access does login)
+#   sudo deploy/deploy.sh tunnel                       # once: public, behind a Cloudflare Tunnel (Cloudflare does HTTPS)
 #   sudo deploy/deploy.sh setup village.example.com   # or, without Cloudflare: Caddy's own HTTPS + password on ports 80/443
 #   deploy/deploy.sh publish [--build]                 # every release: pull from GitHub, copy the site to /var/www
 #                                                      #   (--build reruns extract.py first)
@@ -20,8 +20,8 @@ setup | tunnel)
 		hash=$(caddy hash-password --plaintext "$pass")  # bcrypt: [./$A-Za-z0-9], safe inside sed's | delimiters
 		sed "s|VILLAGE_DOMAIN|$domain|; s|VILLAGE_USER|$user|; s|VILLAGE_HASH|$hash|" "$HERE/deploy/Caddyfile" > /etc/caddy/Caddyfile
 	else
-		# plain HTTP on localhost only, for cloudflared; the login block goes (Cloudflare Access replaces it)
-		sed -e 's|^VILLAGE_DOMAIN {|:8080 {\n\tbind 127.0.0.1|' -e '/dataset is gated/,/^\t}$/d' "$HERE/deploy/Caddyfile" > /etc/caddy/Caddyfile
+		# plain HTTP on localhost only, for cloudflared; the login block goes (the site is public)
+		sed -e 's|^VILLAGE_DOMAIN {|:8080 {\n\tbind 127.0.0.1|' -e '/Login block/,/^\t}$/d' "$HERE/deploy/Caddyfile" > /etc/caddy/Caddyfile
 	fi
 	caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 	install -d -o "${SUDO_USER:-root}" "$WWW"

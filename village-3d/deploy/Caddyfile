@@ -1,11 +1,11 @@
 # village-3d on Caddy (Ubuntu package, 2.6), rendered by deploy.sh:
-#   tunnel: plain HTTP on 127.0.0.1:8080 for cloudflared, no login block (Cloudflare does HTTPS, Access does login)
+#   tunnel: plain HTTP on 127.0.0.1:8080 for cloudflared, public (no login block); Cloudflare does HTTPS
 #   setup:  VILLAGE_DOMAIN/USER/HASH filled in; Caddy gets the HTTPS certificate itself once DNS points here
 VILLAGE_DOMAIN {
 	root * /var/www/village-3d
 	encode zstd gzip
 
-	# The AI Village dataset is gated (research terms): keep this login until AI Digest agrees to a public site.
+	# Login block (setup mode only; tunnel mode drops it and the site is public).
 	basicauth {
 		VILLAGE_USER VILLAGE_HASH
 	}

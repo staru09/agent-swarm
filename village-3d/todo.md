@@ -4,7 +4,7 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
 
 **Status:**
 - 2 (calendar) and 4 (player tags and summaries) are **done**, plus the building guide.
-- 1 (deployment) is ready on the box and waits on the Cloudflare dashboard steps (1.4).
+- 1 (deployment) is live at https://village.gensis-kb-tunnel.com.
 - 3 (livelier agents) is next.
 
 ## What the data allows
@@ -21,8 +21,8 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
 
 ## 1. Deployment
 
-- [x] **1.1 Who can see it.** It sits behind a login, Cloudflare Access with email one-time PIN, because the dataset
-      is gated. A public site needs AI Digest's OK first.
+- [x] **1.1 Who can see it: everyone.** The site is public with no login (decided 2026-09-30). The dataset's terms
+      ask to cite AI Digest; the ⓘ guide credits them and Kenney.
 - [x] **1.2 Hosting.** GitHub is the source of truth. This EC2 box pulls from it and Caddy serves static files on
       127.0.0.1:8080. A Cloudflare Tunnel carries traffic, so there are no public ports and no Elastic IP. No API server.
 - [x] **1.3 Box ready.**
@@ -30,13 +30,9 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
       - `deploy/deploy.sh publish [--build]` pulls from GitHub and copies only the page, scripts, models and data.
       - Cache headers are set: models for a year, data for an hour, page and scripts `no-cache`.
       - Verified locally.
-- [ ] **1.4 You, in the Cloudflare dashboard** (steps in README → Deploy):
-      - create the tunnel and run its install command on the box yourself (it holds a secret token)
-      - add the public hostname, pointing at `localhost:8080`
-      - add an Access application for that hostname
-      - send me the subdomain once the tunnel is Healthy
-- [ ] **1.5 Go live check.** Through the subdomain: the Access login works, a few days load, the models and data are
-      cached at the edge.
+- [x] **1.4 Cloudflare.** The tunnel `village-3d` runs on this box and routes
+      `village.gensis-kb-tunnel.com` → `localhost:8080`. No Access application is needed (public site).
+- [x] **1.5 Live:** https://village.gensis-kb-tunnel.com
 - [ ] **1.6 Optional:** a GitHub Actions workflow that runs `deploy.sh publish` on the box on every push.
 - [ ] **1.7 Frontend production pass.** Pin three.js with SRI or vendor it (it's a pinned jsDelivr version today).
 - [ ] **1.8 CI.** On every PR, run `test_extract.py` and a headless smoke test: load a day, expect no console errors.

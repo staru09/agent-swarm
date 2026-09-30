@@ -116,7 +116,8 @@ column also carries its model label.
 GitHub (`village-3d` branch) is the source of truth. The EC2 box pulls from it and serves the page and data with Caddy
 from `/var/www/village-3d`. A **Cloudflare Tunnel** carries traffic: `cloudflared` on the box connects out to
 Cloudflare, so the box needs no public ports, no Elastic IP and no A record. Cloudflare does HTTPS, and **Cloudflare
-Access** puts a login in front. Keep that login: the dataset is gated under research terms.
+Access** can put a login in front, but the site is **public by decision**. The dataset's terms ask to cite AI
+Digest; the ⓘ guide credits them.
 
 **Once, in the Cloudflare dashboard:**
 1. The domain is an active zone (*Websites*).
@@ -124,14 +125,14 @@ Access** puts a login in front. Keep that login: the dataset is gated under rese
    yourself in an SSH session on the box; it contains a secret token. Wait for the connector to show *Healthy*.
 3. On the tunnel, add a *Public Hostname*: subdomain (e.g. `village`) plus the domain, service **HTTP**,
    `localhost:8080`.
-4. *Zero Trust → Access → Applications → Add → Self-hosted*: the same hostname, with a policy allowing your team's
-   emails, login by one-time PIN.
+4. Optional, only if you ever want a login: *Zero Trust → Access controls → Applications → Self-hosted and
+   private*, the same public hostname, a policy allowing your team's emails.
 5. Optional: a *Cache Rule* for that hostname, paths `/assets/*` and `/data/*`, set to *Eligible for cache* and
    *Respect origin TTL*.
 
 **Once, on the box:**
 ```bash
-sudo deploy/deploy.sh tunnel       # Caddy on 127.0.0.1:8080 only, no login of its own (Access does it); starts at boot
+sudo deploy/deploy.sh tunnel       # Caddy on 127.0.0.1:8080 only, public through the tunnel; starts at boot
 ```
 
 **Every release:**
