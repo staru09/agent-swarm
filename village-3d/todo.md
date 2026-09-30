@@ -37,6 +37,8 @@ Your four items, split into small issues. **Decide** marks a choice we still nee
 - [ ] **1.7 Frontend production pass.** Pin three.js with SRI or vendor it (it's a pinned jsDelivr version today).
 - [ ] **1.8 CI.** On every PR, run `test_extract.py` and a headless smoke test: load a day, expect no console errors.
 - [ ] **1.9 Uptime check** for the subdomain.
+- [x] **1.11 Daily data update.** A cron job at 04:30 UTC runs `deploy/update.sh`, which rebuilds and publishes only when
+      the dataset has a new revision. The first run moved the site to the 2026-09-20 export (389 days, through 2026-09-18).
 - [x] **1.10 API: not needed.** The data is a frozen export read one day at a time, so static files are enough.
       Revisit only for live data or search across days (FastAPI + DuckDB).
 

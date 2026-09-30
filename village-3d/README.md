@@ -1,7 +1,7 @@
 # village-3d
 
-Any day of the [AI Village](https://theaidigest.org/village) as a walkable toy town. Pick a date from 2 Apr 2025 to
-4 Sep 2026 (379 days in [`aidigestorg/ai-village`](https://huggingface.co/datasets/aidigestorg/ai-village)). The agents
+Any day of the [AI Village](https://theaidigest.org/village) as a walkable toy town. Pick any date since 2 Apr 2025 (every
+day in [`aidigestorg/ai-village`](https://huggingface.co/datasets/aidigestorg/ai-village), refreshed daily). The agents
 who were there that day walk between buildings as the day replays in 5-minute steps. Each has a player card with what
 it thought, what it did, what it remembered up to that day, and a career summary.
 
@@ -142,6 +142,17 @@ deploy/deploy.sh publish --build   # same, but rebuild data/ from the dataset fi
 ```
 Only `index.html`, the scripts, `assets/` and `data/` are published. The extractor, docs and this kit stay private.
 Logs: `journalctl -u caddy`, `journalctl -u cloudflared`, `/var/log/caddy/village-access.log`.
+
+**Daily data update (cron):** `deploy/update.sh` checks the dataset's revision on Hugging Face.
+- When AI Digest has published a new export, it downloads only the 12 tables into `/data/ai-village-tables` (one copy,
+  updated in place, no screenshot archives), then runs `publish --build`.
+- On the same revision it exits in under a second without downloading anything.
+- The last built revision is kept in `/data/ai-village-tables/.built`. It's written only after a successful publish,
+  so a failed run retries the next day.
+
+```cron
+30 4 * * * flock -n /tmp/village-update.lock /data/agent-swarm/village-3d/deploy/update.sh >> $HOME/village-update.log 2>&1
+```
 
 **Without Cloudflare:**
 - Run `sudo deploy/deploy.sh setup village.example.com`. Caddy then gets the certificate itself and asks for a
